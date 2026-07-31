@@ -1,0 +1,229 @@
+import pandas as pd
+import numpy as np
+import os
+import plotly.express as px
+from typing import Literal, get_args
+import io
+import warnings
+from .data import Data
+
+IQRHandleMethod = Literal["ignore", "nan"]
+
+
+class SmartEDA:
+    """
+    SmartEDA provides automated exploratory data analysis (EDA)
+    including data intuiton and visualization for pandas DataFrames.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataset.
+    
+    visualize_numerical : bool, default=False
+        Whether to display numeric feature distributions.
+    
+    visualize_categorical : bool, default=False
+        Whether to display categorical feature distributions.
+    """
+    def __init__(self,
+        df: pd.DataFrame | str | io.BytesIO = None,
+        visualize_numerical: bool = False,
+        visualize_categorical: bool = False,
+        visualize_heatmap: bool = False,
+        save_numerical_figures: bool = False,
+        save_categorical_figures: bool = False,
+        save_heatmap_figure: bool = False,
+        show_info: bool = False,
+        dataset_name:str = "dataset",
+        saving_directory: str | None = None,
+        handle_iqr: IQRHandleMethod = "ignore",
+        show_iqr_box: bool = False,
+        date_column: str | int | None = None,
+        date_format: str = None,
+        index_column: str | int | None = None):
+        
+        self.iqr_methods = get_args(IQRHandleMethod)
+        handle_iqr = handle_iqr.lower().strip()
+
+        if not handle_iqr in self.iqr_methods:
+            warnings.warn(f"Invalid method '{handle_iqr}'. Expected one of {self.iqr_methods}, falling back to 'ignore'.", category=UserWarning)
+            handle_iqr = "ignore"
+
+        self.df = Data.load_data(df, can_return_none=True)
+        self.figure_list = []
+        self.handle_iqr = handle_iqr
+        self.visnum = visualize_numerical
+        self.viscat = visualize_categorical
+        self.vishm = visualize_heatmap
+        self.show_info = show_info
+        self.save_numerical = save_numerical_figures
+        self.save_categorical = save_categorical_figures
+        self.save_heatmap = save_heatmap_figure
+        self.dataset = dataset_name
+        self.show_iqr_box = show_iqr_box
+        if saving_directory:
+            self.save_path = os.path.join(saving_directory)
+        else:
+            self.save_path = os.path.join(".", dataset_name)
+
+    def _create_render_plots(self):
+        if self.show_info:
+            self.info_show()
+
+        if self.visnum or self.save_numerical:
+            self._create_histogram_visualization()
+
+        if self.viscat or self.save_categorical:
+            self._create_bar_figure()
+
+        if self.vishm or self.save_heatmap:
+            self._create_heatmap_vis()
+
+        if self.save_categorical or self.save_heatmap or self.save_numerical:
+            self._save_px_html()
+
+    def info_show(self):
+        print("Information")
+        print(self.df.info())
+
+        print("\n5 sample from dataset:")
+        print(self.df.head())
+
+        print("\nEmpty rows per column:")
+        print(self.df.isnull().sum())
+
+    def _create_histogram_visualization(self, column):
+        numeric_figure = px.histogram(self.df, x=column, color=column, barmode="group", marginal="box")
+        numeric_figure.update_layout(bargap=0.0)
+
+        if self.save_numerical:
+            self.figure_list.append(numeric_figure)
+
+        return numeric_figure
+
+    def _create_box_plot(self, column):
+        box_figure = px.box(self.df, x=column)
+
+        if self.save_numerical:
+            self.figure_list.append(box_figure)
+
+        return box_figure
+
+    def _create_bar_figure(self, column):
+        categorical_figure = px.bar(self.df, column)
+
+        if self.save_categorical:
+            self.figure_list.append(categorical_figure)
+
+        return categorical_figure
+
+    def _create_heatmap_vis(self):
+
+        corr_mat = self.df[self.numeric_cols].corr()
+        hm_fig = px.imshow(corr_mat, text_auto=".2f", color_continuous_scale="RdBu_r")
+        
+        if self.save_heatmap:
+            self.figure_list.append(hm_fig)
+
+        return hm_fig
+
+    def _assign_column_categories(self):
+        if isinstance(self.df, pd.DataFrame):
+            self.numeric_cols = self.df.select_dtypes(include=np.number).columns.to_list()
+            self.categorical_cols = self.df.select_dtypes(include=["category", "object", "str"]).columns.to_list()
+
+        else:
+            self.numeric_cols = []
+            self.categorical_cols = []
+
+        self.all_cols = self.numeric_cols + self.categorical_cols
+
+    def _apply_transformations(self):
+        if self.index_column:
+            self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.handle_index_assignment(
+                data=self.df, index_column=self.index_column, 
+                numerical_columns=self.numeric_cols, 
+                categorical_columns=self.categorical_cols, 
+                format=self.chosen_format
+            )
+        
+        if self.date_column:
+            self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.handle_date_assignment(
+                data=self.df, date_column=self.date_column, 
+                numerical_columns=self.numeric_cols, categorical_columns=self.categorical_cols, 
+                format=self.chosen_format
+            )
+
+        if self.handle_iqr == "nan":
+            self.df = Data.return_iqr(self.df, columns=self.numeric_cols)
+
+
+    def __call__(self, data: pd.DataFrame | str | io.BytesIO = None):
+        if not self.figure_list:
+            self.figure_list = []
+
+        read_df = Data.load_data(data, can_return_none=True)
+        if read_df is not None:
+            self.df = read_df
+
+        self._create_starter_ux()
+
+        if isinstance(self.df, pd.DataFrame):
+            self._assign_column_categories()
+            self._apply_transformations()
+            self._create_render_plots()
+
+    def _save_px_html(self):
+        html_content = [
+            "<!DOCTYPE html>",
+            "<html>",
+            "<head>",
+            '    <meta charset="utf-8">',
+            '    <title>EDA Results</title>',
+            '    <script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>',
+            "</head>",
+            "<body>",
+            f"    <h1>EDA Results - {self.dataset}</h1>"
+        ]
+        
+        for graph in self.figure_list:
+            graph_html = graph.to_html(full_html=False, include_plotlyjs=False)
+            html_content.append(graph_html)
+            html_content.append("<br><hr><br>\n")
+            
+        html_content.extend(["</body>", "</html>"])
+        
+        return "\n".join(html_content)
+
+
+    def __str__(self):
+        result = f"""
+Dataset details:
+
+Dataset name: {self.dataset}
+Total column numbers: {len(self.numeric_cols + self.categorical_cols)}
+
+----------------
+
+Empty rows per column:
+{self.df.isnull().sum()}
+
+----------------
+
+Dataset information:
+{self.df.info()}
+
+----------------
+
+Some samples from the dataset:
+{self.df.head()}
+"""
+        return result
+    
+    def __getitem__(self, idx):
+        return self.df[self.all_cols[idx]]
+        
+
+if __name__ == "__main__":
+    SmartEDA()()

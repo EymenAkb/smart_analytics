@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smart_analytics"
+version = "0.1.0"
+description = "Multi-dashboard analytics tool using Plotly and Streamlit"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+dependencies = [
+    "streamlit>=1.30.0",
+    "plotly>=5.18.0",
+    "pandas>=2.0.0"
+]
+
+[project.scripts]
+launch-analytics = "smart_analytics:launch_ux"
+
+[tool.setuptools.packages.find]
+where = ["src"]
