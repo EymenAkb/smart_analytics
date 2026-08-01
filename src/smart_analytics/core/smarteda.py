@@ -5,7 +5,7 @@ import plotly.express as px
 from typing import Literal, get_args
 import io
 import warnings
-from .data import Data
+from smart_analytics.core.data import Data
 
 IQRHandleMethod = Literal["ignore", "nan"]
 
@@ -49,9 +49,6 @@ class SmartEDA:
         if not handle_iqr in self.iqr_methods:
             warnings.warn(f"Invalid method '{handle_iqr}'. Expected one of {self.iqr_methods}, falling back to 'ignore'.", category=UserWarning)
             handle_iqr = "ignore"
-
-        self.df = Data.load_data(df, can_return_none=True)
-        self.figure_list = []
         self.handle_iqr = handle_iqr
         self.visnum = visualize_numerical
         self.viscat = visualize_categorical
@@ -62,10 +59,26 @@ class SmartEDA:
         self.save_heatmap = save_heatmap_figure
         self.dataset = dataset_name
         self.show_iqr_box = show_iqr_box
+        self.date_column = date_column
+        self.date_format = date_format
         if saving_directory:
             self.save_path = os.path.join(saving_directory)
         else:
             self.save_path = os.path.join(".", dataset_name)
+
+        self.df = Data.load_data(df=df, index_col=index_column, date_col=date_column, date_format=date_format, can_return_none=True)
+
+    def _create_saving_lists(self):
+        self.numerical_hist_list = []
+        self.numerical_hist_dict = {}
+        self.numerical_box_list = []
+        self.numerical_box_dict = {}
+        self.categorical_bar_list = []
+        self.categorical_bar_dict = {}
+        self.heatmap_list = []
+        self.heatmap_dict = {}
+        self.figure_list = []
+        self.figure_dict = {}
 
     def _create_render_plots(self):
         if self.show_info:
@@ -97,24 +110,29 @@ class SmartEDA:
         numeric_figure = px.histogram(self.df, x=column, color=column, barmode="group", marginal="box")
         numeric_figure.update_layout(bargap=0.0)
 
-        if self.save_numerical:
-            self.figure_list.append(numeric_figure)
+        self.figure_list.append(numeric_figure)
+        self.figure_dict[column] = numeric_figure
+        self.numerical_hist_list.append(numeric_figure)
+        self.numerical_hist_dict[column] = column
 
         return numeric_figure
 
     def _create_box_plot(self, column):
         box_figure = px.box(self.df, x=column)
 
-        if self.save_numerical:
-            self.figure_list.append(box_figure)
+        self.figure_list.append(box_figure)
+        self.figure_dict[column] = box_figure
+        self.numerical_box_list.append(box_figure)
+        self.numerical_box_dict[column] = box_figure
 
         return box_figure
 
     def _create_bar_figure(self, column):
         categorical_figure = px.bar(self.df, column)
 
-        if self.save_categorical:
-            self.figure_list.append(categorical_figure)
+        self.figure_list.append(categorical_figure)
+        self.categorical_bar_dict[column] = categorical_figure
+        self.categorical_bar_list.append(categorical_figure)
 
         return categorical_figure
 
@@ -123,21 +141,11 @@ class SmartEDA:
         corr_mat = self.df[self.numeric_cols].corr()
         hm_fig = px.imshow(corr_mat, text_auto=".2f", color_continuous_scale="RdBu_r")
         
-        if self.save_heatmap:
-            self.figure_list.append(hm_fig)
+        self.figure_list.append(hm_fig)
+        self.heatmap_dict["heatmap"] = hm_fig
+        self.heatmap_list.append(hm_fig)
 
         return hm_fig
-
-    def _assign_column_categories(self):
-        if isinstance(self.df, pd.DataFrame):
-            self.numeric_cols = self.df.select_dtypes(include=np.number).columns.to_list()
-            self.categorical_cols = self.df.select_dtypes(include=["category", "object", "str"]).columns.to_list()
-
-        else:
-            self.numeric_cols = []
-            self.categorical_cols = []
-
-        self.all_cols = self.numeric_cols + self.categorical_cols
 
     def _apply_transformations(self):
         if self.index_column:
@@ -160,17 +168,14 @@ class SmartEDA:
 
 
     def __call__(self, data: pd.DataFrame | str | io.BytesIO = None):
-        if not self.figure_list:
-            self.figure_list = []
-
         read_df = Data.load_data(data, can_return_none=True)
         if read_df is not None:
             self.df = read_df
 
-        self._create_starter_ux()
+        self._create_saving_lists()
 
         if isinstance(self.df, pd.DataFrame):
-            self._assign_column_categories()
+            self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
             self._apply_transformations()
             self._create_render_plots()
 
