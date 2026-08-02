@@ -23,7 +23,8 @@ class smartedaui(SmartEDA):
         "MM/DD/YYYY HH:MM AM/PM (e.g., 06/06/2026 02:30 PM)": "%m/%d/%Y %I:%M %p",
         "Custom format (Enter below)": "custom"
     }
-    def __init__(self, df: pd.DataFrame | str | io.BytesIO = None,
+    def __init__(self,
+        df: pd.DataFrame | str | io.BytesIO = None,
         visualize_numerical: bool = False,
         visualize_categorical: bool = False,
         visualize_heatmap: bool = False,
@@ -36,14 +37,32 @@ class smartedaui(SmartEDA):
         handle_iqr: IQRHandleMethod = "ignore",
         show_iqr_box: bool = False,
         date_column: str | int | None = None,
+        date_format: str = None,
         index_column: str | int | None = None):
-        super().__init__(df, visualize_numerical, visualize_categorical, visualize_heatmap, save_numerical_figures,save_categorical_figures,
-                        save_heatmap_figure, save_heatmap_figure, show_info, dataset_name, saving_directory, handle_iqr, show_iqr_box,
-                        date_column, index_column)
+        super().__init__(df, visualize_numerical, visualize_categorical, visualize_heatmap, save_numerical_figures, save_categorical_figures,
+                        save_heatmap_figure, show_info, dataset_name, saving_directory, handle_iqr, show_iqr_box,
+                        date_column, date_format, index_column)
 
     @st.cache_data
-    def _load_cached_data(uploaded_file):
-        return Data.load_data(uploaded_file, can_return_none=True)
+    def _load_cached_data(_self, uploaded_file):
+        df = Data.load_data(uploaded_file, can_return_none=True)
+        return df
+
+    def _create_render_plots(self):
+        if self.show_info:
+            self.info_show()
+
+        if (self.visnum or self.save_numerical) and isinstance(self.numeric_cols, list):
+            self._create_numerical_visualization()
+
+        if (self.viscat or self.save_categorical) and isinstance(self.categorical_cols, list):
+            self._create_categorical_vis()
+
+        if (self.vishm or self.save_heatmap) and isinstance(self.numeric_cols, list):
+            self._create_heatmap_figure()
+
+        if (self.save_categorical or self.save_heatmap or self.save_numerical) and isinstance(self.numeric_cols, list) and isinstance(self.categorical_cols, list):
+            self._save_px_html()
 
     def _create_numerical_visualization(self):
         if not self.numeric_cols:
@@ -72,7 +91,7 @@ class smartedaui(SmartEDA):
         for i, column in enumerate(self.categorical_cols):
             target = c1 if not i % 2 else c2
             with target:
-                st.plotly_chart(self._create_bar_plot(column=column), width="stretch")
+                st.plotly_chart(self._create_bar_figure(column=column), width="stretch")
 
     def _create_heatmap_figure(self):
         if not self.numeric_cols:
@@ -138,12 +157,13 @@ class smartedaui(SmartEDA):
     def __call__(self):
         self._create_starter_ux()
         if isinstance(self.df, pd.DataFrame):
-            self._assign_column_categories()
             self._create_saving_lists()
+            self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
             st.title("SmartEda report")
             st.sidebar.divider()
             self._create_assignments_ux()
             self._apply_transformations()
+            self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
             self._create_render_plots()
             self._html_extract_ux()
             self._html_download_ux()
