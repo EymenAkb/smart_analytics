@@ -2,10 +2,26 @@ from smart_analytics.core.data import Data
 from smart_analytics.core.timeseries import SmartTimeSeries
 import streamlit as st
 from typing import Literal, get_args
+import pandas as pd
 
 marginal_literal = Literal[None, "box"]
 
 class tsui(SmartTimeSeries):
+    DATE_FORMATS = {
+        "YYYY-MM-DD (e.g., 2026-06-06)": "%Y-%m-%d",
+        "YYYY-MM-DD HH:MM:SS (e.g., 2026-06-06 14:30:00)": "%Y-%m-%d %H:%M:%S",
+        "MM/DD/YYYY (US, e.g., 06/06/2026)": "%m/%d/%Y",
+        "DD/MM/YYYY (UK/EU, e.g., 06/06/2026)": "%d/%m/%Y",
+        "DD/MM/YY (Short UK, e.g., 06/06/26)": "%d/%m/%y",
+        "DD.MM.YYYY (e.g., 06.06.2026)": "%d.%m.%Y",
+        "DD.MM.YY (e.g., 06.06.26)": "%d.%m.%y",
+        "Month DD, YYYY (e.g., June 06, 2026)": "%B %d, %Y",
+        "DD Month YYYY (e.g., 06 June 2026)": "%d %B %Y",
+        "Mon DD, YYYY (e.g., Jun 06, 2026)": "%b %d, %Y",
+        "DD-Mon-YYYY (e.g., 06-Jun-2026)": "%d-%b-%Y",
+        "MM/DD/YYYY HH:MM AM/PM (e.g., 06/06/2026 02:30 PM)": "%m/%d/%Y %I:%M %p",
+        "Custom format (Enter below)": "custom"
+    }
     def __init__(self):
         super().__init__()
 
@@ -81,5 +97,21 @@ class tsui(SmartTimeSeries):
         self.scatter_marginal = st.sidebar.selectbox("Marginal y (advanced)", options=get_args(marginal_literal))
 
         if df:
-            self.df = Data.load_data(df)
+            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.load_data(df, return_columns=True)
 
+    def __call__(self):
+        self._create_savings()
+        self._create_starter_ux()
+        if isinstance(self.df, pd.DataFrame):
+            self._create_assignments_ux()
+            self._apply_transformations()
+            self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
+            if self.date_column:
+                self._create_ux_sl()
+            else:
+                st.title("Provide date column from sidebar to start.")
+        else:
+            st.title("Provide a DataFrame from sidebar.")
+
+if __name__ == "__main__":
+    tsui()()
