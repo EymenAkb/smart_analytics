@@ -69,6 +69,9 @@ class Data:
     
     @staticmethod
     def assign_date(data:pd.DataFrame, date_column, format="%Y-%m-%d") -> pd.DataFrame:
+        if not isinstance(date_column, (int, str)):
+            warnings.warn("Provided date column isn't in the waited formats returning the DataFrame without assigning.", category=UserWarning)
+            return data
         try:
             data[date_column] = pd.to_datetime(data[date_column], format=format)
         except Exception as e:
@@ -77,7 +80,8 @@ class Data:
         return data
 
     @staticmethod
-    def handle_date_assignment(data: pd.DataFrame, date_column, format="%Y-%m-%d") -> tuple[pd.DataFrame, list, list, list]:
+    def handle_date_assignment(data: pd.DataFrame, date_column=None, numerical_columns:list=None, categorical_columns:list = None, 
+                               format="%Y-%m-%d", return_columns:bool=False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
         """Attempts to set date; drops column from column lists if it succeeds."""
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
@@ -89,14 +93,26 @@ class Data:
         )
 
         if not warning_occurred:
-            numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, date_column=date_column)
+            numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
+                                                                                    categorical_columns=categorical_columns, date_column=date_column)
 
+        if warning_occurred:
+            numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
+                                                                                    categorical_columns=categorical_columns)
 
-        return data, numerical_columns, categorical_columns, all_cols
+        if return_columns:
+            return data, numerical_columns, categorical_columns, all_cols
+        
+        return data
 
     @staticmethod
-    def assign_index(data: pd.DataFrame, index_column) -> pd.DataFrame:
+    def assign_index(data: pd.DataFrame, index_column=None) -> pd.DataFrame:
+        if not isinstance(index_column, (str, int)):
+            warnings.warn("index column isn't in the waited formats returning the DataFrame normally", category=UserWarning)
+            return data
         try:
+            if isinstance(index_column, int):
+                index_column = data.columns[index_column]
             data.set_index(index_column, inplace=True)
         except Exception as e:
             msg =  f"Could not assign the column: {index_column} as index column for: {e} error. Continuing without assigning."
@@ -104,7 +120,8 @@ class Data:
         return data
 
     @staticmethod
-    def handle_index_assignment(data: pd.DataFrame, index_column, date_column=None) -> tuple[pd.DataFrame, list, list, list]:
+    def handle_index_assignment(data:pd.DataFrame, index_column=None, numerical_columns=None, 
+                                categorical_columns=None, date_column=None, return_columns:bool=False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
         """Attempts to set index; drops column from columns lists if it succeeds."""
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
@@ -115,10 +132,14 @@ class Data:
             for w in captured
         )
 
-        if not warning_occurred:
-            numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, date_column=date_column)
 
-        return data, numerical_columns, categorical_columns, all_cols
+
+        if return_columns:
+            numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
+                                                                    categorical_columns=categorical_columns,date_column=date_column)
+            return data, numerical_columns, categorical_columns, all_cols
+        
+        return data
 
     @staticmethod
     def calculate_iqr(column):
