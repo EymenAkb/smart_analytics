@@ -49,6 +49,7 @@ class SmartEDA:
         if not handle_iqr in self.iqr_methods:
             warnings.warn(f"Invalid method '{handle_iqr}'. Expected one of {self.iqr_methods}, falling back to 'ignore'.", category=UserWarning)
             handle_iqr = "ignore"
+
         self.handle_iqr = handle_iqr
         self.visnum = visualize_numerical
         self.viscat = visualize_categorical
@@ -61,12 +62,16 @@ class SmartEDA:
         self.show_iqr_box = show_iqr_box
         self.date_column = date_column
         self.date_format = date_format
+        self.index_column = index_column
         if saving_directory:
             self.save_path = os.path.join(saving_directory)
         else:
             self.save_path = os.path.join(".", dataset_name)
 
-        self.df = Data.load_data(df=df, index_col=index_column, date_col=date_column, date_format=date_format, can_return_none=True)
+        self.df = Data.load_data(df=df, index_col=index_column, date_col=date_column, date_format=date_format, can_return_none=True, return_columns=False)
+
+        if isinstance(self.df, pd.DataFrame):
+            self._run()
 
     def _create_saving_lists(self):
         self.numerical_hist_list = []
@@ -80,20 +85,28 @@ class SmartEDA:
         self.figure_list = []
         self.figure_dict = {}
 
+    def _run(self):
+        self._create_saving_lists()
+        self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
+        self._apply_transformations()
+        self._create_render_plots()
+
     def _create_render_plots(self):
         if self.show_info:
             self.info_show()
 
-        if self.visnum or self.save_numerical:
-            self._create_histogram_visualization()
+        if (self.visnum or self.save_numerical) and isinstance(self.numeric_cols, list):
+            for column in self.numeric_cols:
+                self._create_histogram_visualization(column=column)
 
-        if self.viscat or self.save_categorical:
-            self._create_bar_figure()
+        if (self.viscat or self.save_categorical) and isinstance(self.categorical_cols, list):
+            for column in self.categorical_cols:
+                self._create_bar_figure(column=column)
 
-        if self.vishm or self.save_heatmap:
+        if (self.vishm or self.save_heatmap) and isinstance(self.numeric_cols, list):
             self._create_heatmap_vis()
 
-        if self.save_categorical or self.save_heatmap or self.save_numerical:
+        if (self.save_categorical or self.save_heatmap or self.save_numerical) and isinstance(self.numeric_cols, list) and isinstance(self.categorical_cols, list):
             self._save_px_html()
 
     def info_show(self):
@@ -110,8 +123,9 @@ class SmartEDA:
         numeric_figure = px.histogram(self.df, x=column, color=column, barmode="group", marginal="box")
         numeric_figure.update_layout(bargap=0.0)
 
-        self.figure_list.append(numeric_figure)
-        self.figure_dict[column] = numeric_figure
+        if self.save_numerical:
+            self.figure_list.append(numeric_figure)
+            self.figure_dict[column] = numeric_figure
         self.numerical_hist_list.append(numeric_figure)
         self.numerical_hist_dict[column] = column
 
@@ -120,8 +134,9 @@ class SmartEDA:
     def _create_box_plot(self, column):
         box_figure = px.box(self.df, x=column)
 
-        self.figure_list.append(box_figure)
-        self.figure_dict[column] = box_figure
+        if self.save_numerical and self.show_iqr_box:
+            self.figure_list.append(box_figure)
+            self.figure_dict[column] = box_figure
         self.numerical_box_list.append(box_figure)
         self.numerical_box_dict[column] = box_figure
 
@@ -130,7 +145,10 @@ class SmartEDA:
     def _create_bar_figure(self, column):
         categorical_figure = px.bar(self.df, column)
 
-        self.figure_list.append(categorical_figure)
+        if self.save_categorical:
+            self.figure_list.append(categorical_figure)
+            self.figure_dict[column] = categorical_figure
+
         self.categorical_bar_dict[column] = categorical_figure
         self.categorical_bar_list.append(categorical_figure)
 
@@ -140,8 +158,11 @@ class SmartEDA:
 
         corr_mat = self.df[self.numeric_cols].corr()
         hm_fig = px.imshow(corr_mat, text_auto=".2f", color_continuous_scale="RdBu_r")
-        
-        self.figure_list.append(hm_fig)
+
+        if self.save_heatmap:
+            self.figure_list.append(hm_fig)
+            self.figure_dict["hetmap"] = hm_fig
+
         self.heatmap_dict["heatmap"] = hm_fig
         self.heatmap_list.append(hm_fig)
 
@@ -152,20 +173,21 @@ class SmartEDA:
             self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.handle_index_assignment(
                 data=self.df, index_column=self.index_column, 
                 numerical_columns=self.numeric_cols, 
-                categorical_columns=self.categorical_cols, 
-                format=self.chosen_format
+                categorical_columns=self.categorical_cols,
+                date_column=self.date_column,
+                return_columns=True
             )
         
         if self.date_column:
             self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.handle_date_assignment(
                 data=self.df, date_column=self.date_column, 
                 numerical_columns=self.numeric_cols, categorical_columns=self.categorical_cols, 
-                format=self.chosen_format
+                format=self.date_format, 
+                return_columns=True
             )
 
         if self.handle_iqr == "nan":
             self.df = Data.return_iqr(self.df, columns=self.numeric_cols)
-
 
     def __call__(self, data: pd.DataFrame | str | io.BytesIO = None):
         read_df = Data.load_data(data, can_return_none=True)
@@ -198,8 +220,8 @@ class SmartEDA:
             html_content.append("<br><hr><br>\n")
             
         html_content.extend(["</body>", "</html>"])
-        
-        return "\n".join(html_content)
+        self.html_fig = "\n".join(html_content)
+        return self.html_fig
 
 
     def __str__(self):
@@ -231,4 +253,8 @@ Some samples from the dataset:
         
 
 if __name__ == "__main__":
-    SmartEDA()()
+    import seaborn as sns
+    df = sns.load_dataset("titanic")
+    eda = SmartEDA(df=df, visualize_numerical=True, save_numerical_figures=True, index_column=0)
+    import streamlit as st
+    st.plotly_chart(eda.figure_list[0])
