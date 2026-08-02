@@ -139,6 +139,7 @@ class smartedaui(SmartEDA):
         self._create_starter_ux()
         if isinstance(self.df, pd.DataFrame):
             self._assign_column_categories()
+            self._create_saving_lists()
             st.title("SmartEda report")
             st.sidebar.divider()
             self._create_assignments_ux()
