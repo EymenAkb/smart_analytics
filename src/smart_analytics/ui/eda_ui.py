@@ -5,6 +5,7 @@ from typing import Literal, get_args
 import pandas as pd
 import io
 
+
 IQRHandleMethod = Literal["ignore", "nan"]
 
 class smartedaui(SmartEDA):
@@ -47,6 +48,22 @@ class smartedaui(SmartEDA):
     def _load_cached_data(_self, uploaded_file):
         df = Data.load_data(uploaded_file, can_return_none=True)
         return df
+
+    def _run(self):
+        if isinstance(self.df, pd.DataFrame):
+            self._create_saving_lists()
+            self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
+            st.title("SmartEda report")
+            st.sidebar.divider()
+            self._create_assignments_ux()
+            self._apply_transformations()
+            self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
+            self._create_render_plots()
+            self._html_extract_ux()
+            self._html_download_ux()
+        else:
+            st.title(f"Provide a dataframe in the sidebar to continue.")
+
 
     def _create_render_plots(self):
         if self.show_info:
