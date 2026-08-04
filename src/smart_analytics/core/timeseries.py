@@ -3,6 +3,7 @@ import numpy as np
 import plotly.express as px
 from typing import Literal, get_args
 from smart_analytics.core.data import Data
+from pandas.api.types import is_datetime64_any_dtype
 
 marginal_literal = Literal[None, "box"]
 
@@ -33,35 +34,40 @@ class SmartTimeSeries:
         self._create_savings()
         self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
         self._apply_transformations()
-        self._render_plots()
-    
+        if Data.date_check(self.df, date_column=self.date_column):
+            self._render_plots()
 
     def _render_plots(self):
-        if self.numerical_columns and self.date_column:
+        if self.numerical_columns and Data.date_check(self.df, date_column=self.date_column):
             for column in self.numerical_columns:
                 if self.visualize_line:
-                    self._create_line_visualization(column=column)
+                    ln_fig = self._create_line_visualization(column=column)
+                    if self.save_line_graphs:
+                        self._save_line(column=column, numerical_fig=ln_fig)
 
                 if self.visualize_scatter:
-                    self._create_scatter_visualization(column=column)
+                    sc_fig = self._create_scatter_visualization(column=column)
+                    if self.save_scatter_graphs:
+                        self._save_scatter(column=column, scatter_figure=sc_fig)
 
+    def _save_scatter(self, column, scatter_figure):
+        self.figure_list.append(scatter_figure)
+        self.figure_dict[column] = scatter_figure
+        self.scatter_figures.append(scatter_figure)
+        self.scatter_figures_dict[column] = scatter_figure
+
+    def _save_line(self, column, numerical_fig):
+        self.figure_list.append(numerical_fig)
+        self.figure_dict[column] = numerical_fig
+        self.line_figures.append(numerical_fig)
+        self.line_figures_dict[column] = numerical_fig
 
     def _create_line_visualization(self, column):
         line_figure = px.line(self.df, x=self.date_column, y=column)
-        if self.save_line_graphs:
-            self.figure_list.append(line_figure)
-            self.figure_dict[column] = line_figure
-        self.line_figures.append(line_figure)
-        self.line_figures_dict[column] = line_figure
         return line_figure
 
     def _create_scatter_visualization(self, column, marginal_y: marginal_literal =None):
         scatter_figure = px.scatter(self.df, x=self.date_column, y=column, marginal_y=marginal_y)
-        if self.save_scatter_graphs:
-            self.figure_list.append(scatter_figure)
-            self.figure_dict[column] = scatter_figure
-        self.scatter_figures.append(scatter_figure)
-        self.scatter_figures_dict[column] = scatter_figure
         return scatter_figure
 
     def _apply_transformations(self):
@@ -82,13 +88,11 @@ class SmartTimeSeries:
             )
 
     def __call__(self):
-        if isinstance(self.df, pd.DataFrame):
+        if isinstance(self.df, pd.DataFrame) and Data.date_check(self.df, date_column=self.date_column):
             self._create_savings()
             self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
             self._apply_transformations()
             self._render_plots()
 
 if __name__ == "__main__":
-    df = pd.read_csv("Py.csv")
-    eda = SmartTimeSeries(df=df, date_column="Date",date_format="%Y", visualize_line_graph=True, visualize_scatter=True)
-    print(eda.figure_list)
+    pass
