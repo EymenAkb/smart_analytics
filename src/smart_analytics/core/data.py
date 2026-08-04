@@ -2,6 +2,7 @@ import pandas as pd
 import warnings
 import io
 import numpy as np
+from pandas.api.types import is_datetime64_any_dtype
 
 class Data:
     @staticmethod
@@ -18,7 +19,6 @@ class Data:
         """
         try:
             if isinstance(df, io.BytesIO):
-                df.seek(0)
                 df = pd.read_csv(df)
             
             elif isinstance(df, pd.DataFrame):
@@ -26,6 +26,7 @@ class Data:
         
             elif isinstance(df, str):
                 df = pd.read_csv(df)
+            
             else:
                 if can_return_none:
                     return None
@@ -55,11 +56,19 @@ class Data:
         if not isinstance(data, pd.DataFrame):
             raise ValueError("Provided dataframe is not a pd.DataFrame object.")
 
+        if isinstance(numerical_columns, str):
+            numerical_columns = [numerical_columns]
+        if isinstance(categorical_columns, str):
+            categorical_columns = [categorical_columns]
+
         if not isinstance(numerical_columns, list):
             numerical_columns = data.select_dtypes(include=np.number).columns.to_list()
 
         if not isinstance(categorical_columns, list):
             categorical_columns = data.select_dtypes(include=["str", "object", "category"]).columns.to_list()
+
+        if not Data.date_check(data=data, date_column=date_column):
+            date_column = None
 
         numerical_columns = [col for col in numerical_columns if col != date_column]
         categorical_columns = [col for col in categorical_columns if col != date_column]
@@ -132,13 +141,11 @@ class Data:
             for w in captured
         )
 
-
-
         if return_columns:
             numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
                                                                     categorical_columns=categorical_columns,date_column=date_column)
             return data, numerical_columns, categorical_columns, all_cols
-        
+
         return data
 
     @staticmethod
@@ -173,3 +180,12 @@ class Data:
                 warnings.warn(f"Column '{col}' not found in DataFrame.", category=UserWarning)
         return data
 
+    @staticmethod
+    def date_check(data: pd.DataFrame, date_column: str | int = None) -> bool:
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError("Provided DataFrame isn't a pandas DataFrame object.")
+
+        if date_column is None or date_column not in data.columns:
+            return False
+        
+        return is_datetime64_any_dtype(data[date_column])
