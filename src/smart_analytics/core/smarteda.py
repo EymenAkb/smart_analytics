@@ -253,8 +253,4 @@ Some samples from the dataset:
         
 
 if __name__ == "__main__":
-    import seaborn as sns
-    df = sns.load_dataset("titanic")
-    eda = SmartEDA(df=df, visualize_numerical=True, save_numerical_figures=True, index_column=0)
-    import streamlit as st
-    st.plotly_chart(eda.figure_list[0])
+    pass
