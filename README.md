@@ -1,5 +1,7 @@
 # smart_analytics
 
+[![Python CI](https://github.com/EymenAkb/smart_analytics/actions/workflows/python-ci.yml/badge.svg)](https://github.com/EymenAkb/smart_analytics/actions/workflows/python-ci.yml)
+
 This repository was developed by **EymenAkb** as a multi-dashboard analytics tool utilizing **Plotly** and **Streamlit**.
 
 An Object-Oriented Programming (OOP) Python library designed to streamline Exploratory Data Analysis (EDA) and Time Series analytics. It automates data handling, summary generation, and interactive visualization using **Plotly**, complete with a built-in **Streamlit** dashboard application for rapid web-based exploration and HTML report extraction.
