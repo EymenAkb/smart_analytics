@@ -69,3 +69,7 @@ venv/
 ENV/
 env/
 .venv/
+
+# PyTest
+
+.pytest_cache/
