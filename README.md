@@ -28,6 +28,12 @@ smart_analytics/
 ├── LICENSE
 ├── pyproject.toml
 ├── README.md
+├──tests/
+│   ├──__init__.py
+│   └──test_core_data.py
+├──.github/
+│   └──workflows
+│       └──python-ci.yml
 └── src/
     └── smart_analytics/
         ├── __init__.py
