@@ -29,6 +29,7 @@ class Data:
             
             else:
                 if can_return_none:
+                    warnings.warn("Error: Invalid or missing dataframe input occurred during DataFrame reading. Returning None.", category=UserWarning)
                     return None
                 raise ValueError("Invalid or missing dataframe input.")
             
@@ -43,7 +44,7 @@ class Data:
             df = Data.handle_index_assignment(data=df, index_column=index_col)
 
         if date_col:
-            df = Data.handle_date_assignment(data=df, date_column=date_col, format=format)
+            df = Data.handle_date_assignment(data=df, date_column=date_col, date_format=date_format)
 
         if return_columns:
             numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=df, date_column=date_col)
@@ -65,7 +66,7 @@ class Data:
             numerical_columns = data.select_dtypes(include=np.number).columns.to_list()
 
         if not isinstance(categorical_columns, list):
-            categorical_columns = data.select_dtypes(include=["str", "object", "category"]).columns.to_list()
+            categorical_columns = data.select_dtypes(include=["object", "category"]).columns.to_list()
 
         if not Data.date_check(data=data, date_column=date_column):
             date_column = None
@@ -77,12 +78,12 @@ class Data:
         return numerical_columns, categorical_columns, all_cols
     
     @staticmethod
-    def assign_date(data:pd.DataFrame, date_column, format="%Y-%m-%d") -> pd.DataFrame:
+    def assign_date(data:pd.DataFrame, date_column, date_format="%Y-%m-%d") -> pd.DataFrame:
         if not isinstance(date_column, (int, str)):
             warnings.warn("Provided date column isn't in the waited formats returning the DataFrame without assigning.", category=UserWarning)
             return data
         try:
-            data[date_column] = pd.to_datetime(data[date_column], format=format)
+            data[date_column] = pd.to_datetime(data[date_column], format=date_format)
         except Exception as e:
             msg = f"Could not assign the column: {date_column} as date column for: {e} error. Continuing without assigning."
             warnings.warn(msg, category=UserWarning)
@@ -90,26 +91,20 @@ class Data:
 
     @staticmethod
     def handle_date_assignment(data: pd.DataFrame, date_column=None, numerical_columns:list=None, categorical_columns:list = None, 
-                               format="%Y-%m-%d", return_columns:bool=False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
+                               date_format="%Y-%m-%d", return_columns:bool=False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
         """Attempts to set date; drops column from column lists if it succeeds."""
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            data = Data.assign_date(data=data, date_column=date_column, format=format)
+            data = Data.assign_date(data=data, date_column=date_column, date_format=date_format)
 
         warning_occurred = any(
             issubclass(w.category, UserWarning) and "Could not assign the column" in str(w.message)
             for w in captured
         )
 
-        if not warning_occurred:
-            numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
-                                                                                    categorical_columns=categorical_columns, date_column=date_column)
-
-        if warning_occurred:
-            numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
-                                                                                    categorical_columns=categorical_columns)
-
         if return_columns:
+            numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
+                                                                categorical_columns=categorical_columns, date_column=date_column)
             return data, numerical_columns, categorical_columns, all_cols
         
         return data
@@ -143,7 +138,7 @@ class Data:
 
         if return_columns:
             numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
-                                                                    categorical_columns=categorical_columns,date_column=date_column)
+                                                                    categorical_columns=categorical_columns, date_column=date_column)
             return data, numerical_columns, categorical_columns, all_cols
 
         return data
