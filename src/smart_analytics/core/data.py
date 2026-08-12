@@ -74,7 +74,9 @@ class Data:
         numerical_columns = [col for col in numerical_columns if col != date_column]
         categorical_columns = [col for col in categorical_columns if col != date_column]
         all_cols = numerical_columns + categorical_columns
-
+        if date_column:
+            all_cols.append(date_column)
+        
         return numerical_columns, categorical_columns, all_cols
     
     @staticmethod
