@@ -126,8 +126,9 @@ class SmartEDA:
         if self.save_numerical:
             self.figure_list.append(numeric_figure)
             self.figure_dict[column] = numeric_figure
-        self.numerical_hist_list.append(numeric_figure)
-        self.numerical_hist_dict[column] = column
+
+            self.numerical_hist_list.append(numeric_figure)
+            self.numerical_hist_dict[column] = numeric_figure
 
         return numeric_figure
 
@@ -137,8 +138,9 @@ class SmartEDA:
         if self.save_numerical and self.show_iqr_box:
             self.figure_list.append(box_figure)
             self.figure_dict[column] = box_figure
-        self.numerical_box_list.append(box_figure)
-        self.numerical_box_dict[column] = box_figure
+
+            self.numerical_box_list.append(box_figure)
+            self.numerical_box_dict[column] = box_figure
 
         return box_figure
 
@@ -149,8 +151,8 @@ class SmartEDA:
             self.figure_list.append(categorical_figure)
             self.figure_dict[column] = categorical_figure
 
-        self.categorical_bar_dict[column] = categorical_figure
-        self.categorical_bar_list.append(categorical_figure)
+            self.categorical_bar_dict[column] = categorical_figure
+            self.categorical_bar_list.append(categorical_figure)
 
         return categorical_figure
 
@@ -163,8 +165,8 @@ class SmartEDA:
             self.figure_list.append(hm_fig)
             self.figure_dict["hetmap"] = hm_fig
 
-        self.heatmap_dict["heatmap"] = hm_fig
-        self.heatmap_list.append(hm_fig)
+            self.heatmap_dict["heatmap"] = hm_fig
+            self.heatmap_list.append(hm_fig)
 
         return hm_fig
 
@@ -182,15 +184,15 @@ class SmartEDA:
             self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.handle_date_assignment(
                 data=self.df, date_column=self.date_column, 
                 numerical_columns=self.numeric_cols, categorical_columns=self.categorical_cols, 
-                format=self.date_format, 
+                date_format=self.date_format, 
                 return_columns=True
             )
 
         if self.handle_iqr == "nan":
             self.df = Data.return_iqr(self.df, columns=self.numeric_cols)
 
-    def __call__(self, data: pd.DataFrame | str | io.BytesIO = None):
-        read_df = Data.load_data(data, can_return_none=True)
+    def __call__(self, df: pd.DataFrame | str | io.BytesIO = None):
+        read_df = Data.load_data(df, can_return_none=True)
         if read_df is not None:
             self.df = read_df
 

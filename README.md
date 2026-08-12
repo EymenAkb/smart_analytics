@@ -32,7 +32,8 @@ smart_analytics/
 ├── README.md
 ├──tests/
 │   ├──__init__.py
-│   └──test_core_data.py
+│   ├──test_core_data.py
+│   └──test_core_smarteda.py
 ├──.github/
 │   └──workflows
 │       └──python-ci.yml
