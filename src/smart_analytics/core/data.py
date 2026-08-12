@@ -6,7 +6,7 @@ from pandas.api.types import is_datetime64_any_dtype
 
 class Data:
     @staticmethod
-    def load_data(df: str | pd.DataFrame | None = None, index_col: str | int | None = None, date_col: str | int | None = None, date_format="%d/%m/%Y",
+    def load_data(df: str | pd.DataFrame | None = None, index_col: str | int | None = None, date_col: str | int | None = None, date_format="mixed",
                   can_return_none: bool = False, return_columns:bool=False) -> None | pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
         """
         load_data method is a dataloading function, given the inputs it returns the cached dataframe.
@@ -83,7 +83,7 @@ class Data:
         return numerical_columns, categorical_columns, all_cols
     
     @staticmethod
-    def assign_date(data:pd.DataFrame, date_column, date_format="%Y-%m-%d") -> pd.DataFrame:
+    def assign_date(data:pd.DataFrame, date_column, date_format="mixed") -> pd.DataFrame:
         if not isinstance(date_column, (int, str)):
             warnings.warn("Provided date column isn't in the waited formats returning the DataFrame without assigning.", category=UserWarning)
             return data
@@ -96,7 +96,7 @@ class Data:
 
     @staticmethod
     def handle_date_assignment(data: pd.DataFrame, date_column=None, numerical_columns:list=None, categorical_columns:list = None, 
-                               date_format="%Y-%m-%d", return_columns:bool=False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
+                               date_format="mixed", return_columns:bool=False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
         """Attempts to set date; drops column from column lists if it succeeds."""
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
