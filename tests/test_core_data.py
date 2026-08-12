@@ -67,7 +67,9 @@ def test_column_assigner():
 
     assert "num_col" in num
     assert "cat_col" in cat
-    assert "date_col" not in all_cols
+    assert "date_col" in all_cols
+    assert "date_col" not in num
+    assert "date_col" not in cat
     assert "num_col" in all_cols
     assert "cat_col" in all_cols
 
@@ -116,7 +118,9 @@ def test_handle_date_assignment():
     
     assert pd.api.types.is_datetime64_any_dtype(res_df["date"])
     assert "val" in num
-    assert "date" not in all_cols
+    assert "date" in all_cols
+    assert "date" not in num
+    assert "date" not in cat
 
 # ==========================================
 # TESTS FOR assign_index & handle_index_assignment
