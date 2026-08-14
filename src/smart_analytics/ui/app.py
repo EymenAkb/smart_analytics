@@ -13,6 +13,12 @@ smarteda_page = st.Page(
     icon="📊"
 )
 
-pg = st.navigation([home_page, smarteda_page], position="top")
+timeseries_page = st.Page(
+    "time_ui.py",
+    title="Time Series",
+    icon="📈"
+)
+
+pg = st.navigation([home_page, smarteda_page, timeseries_page], position="top")
 
 pg.run()

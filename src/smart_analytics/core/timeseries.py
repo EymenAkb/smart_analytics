@@ -67,7 +67,7 @@ class SmartTimeSeries:
                         self._save_numerical_line(column=column, numerical_fig=ln_fig)
 
                 if self.visualize_scatter:
-                    sc_fig = self._create_scatter_visualization(column=column)
+                    sc_fig = self._create_scatter_visualization(column=column, marginal_y=self.marginal_y)
                     if self.save_scatter_graphs:
                         self._save_scatter(column=column, scatter_figure=sc_fig)
 
@@ -120,8 +120,8 @@ class SmartTimeSeries:
         line_figure = px.line(self.df, x=self.date_column, y=column, markers=True, facet_col=facet_col, facet_col_wrap=facet_col_wrap)
         return line_figure
 
-    def _create_scatter_visualization(self, column):
-        scatter_figure = px.scatter(self.df, x=self.date_column, y=column, marginal_y=self.marginal_y)
+    def _create_scatter_visualization(self, column, marginal_y=None):
+        scatter_figure = px.scatter(self.df, x=self.date_column, y=column, marginal_y=marginal_y)
         return scatter_figure
 
     def _create_area_visualization(self, column, groupnorm="percent"):

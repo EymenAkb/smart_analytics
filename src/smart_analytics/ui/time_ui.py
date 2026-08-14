@@ -6,6 +6,11 @@ import pandas as pd
 import io
 import warnings
 
+@st.cache_data
+def load_data(df: str | pd.DataFrame | None = None, index_col: str | int | None = None, date_col: str | int | None = None, date_format="mixed",
+                  can_return_none: bool = False, return_columns:bool=False) -> None | pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
+    return Data.load_data(df=df, index_col=index_col, date_col=date_col, date_format=date_format, can_return_none=can_return_none, return_columns=return_columns)
+
 marginal_literal = Literal[None, "box", "violin", "rug"]
 
 class tsui(SmartTimeSeries):
@@ -32,7 +37,7 @@ class tsui(SmartTimeSeries):
                  save_treemap:bool=False,
                  scatter_marginal_y:marginal_literal=None):
         
-        self.df = Data.load_data(df=df, can_return_none=True, date_col=date_column, date_format=date_format)
+        self.df = load_data(df=df, can_return_none=True, date_col=date_column, date_format=date_format)
         self.date_column = date_column
         self.date_format = date_format
         self.index_column = index_column
@@ -55,12 +60,11 @@ class tsui(SmartTimeSeries):
 
         if isinstance(self.df, pd.DataFrame):
             self._run()
-
-    @st.cache_data
-    def _load_dataframe(self, data_frame):
-        return Data.load_data(df=data_frame, date_col=self.date_column, date_format=self.date_format)
     
     def _create_savings(self):
+        self.numerical_columns = []
+        self.categorical_columns = []
+        self.all_columns = []
         self.figure_list = []
         self.figure_dict = {}
         self.numerical_line_figures = []
@@ -93,7 +97,7 @@ class tsui(SmartTimeSeries):
         self.figure_list.append(numerical_fig)
         self.figure_dict[column] = numerical_fig
         self.numerical_line_figures.append(numerical_fig)
-        self.numerical_line_figures_dict[column] = numerical_fig                  
+        self.numerical_line_figures_dict[column] = numerical_fig
 
     def _save_scatter(self, column, scatter_figure):
         self.figure_list.append(scatter_figure)
@@ -142,13 +146,11 @@ class tsui(SmartTimeSeries):
             else:
                 if self.visualize_line_categorical:
                     fig = self._create_line_visualization(column=column)
-                    st.plotly_chart(line_fig, width="stretch")
                     if self.save_line_categorical:
                         self._save_categorical_line(column=column, categorical_fig=fig)
 
                 elif self.visualize_area:
                     fig = self._create_area_visualization(column)
-                    st.plotly_chart(area_fig, width="stretch")
                     if self.save_area_graphs:
                         self._save_area(column=column, categorical_fig=fig)
                 else:
@@ -181,7 +183,7 @@ class tsui(SmartTimeSeries):
                     if self.save_line_graphs_numerical:
                         self._save_numerical_line(column=column, numerical_fig=ln_fig)
                 with c2:
-                    sc_fig = self._create_scatter_visualization(column=column)
+                    sc_fig = self._create_scatter_visualization(column=column, marginal_y=self.marginal_y)
                     st.plotly_chart(sc_fig, width="stretch")
                     if self.save_scatter_graphs:
                         self._save_scatter(column=column, scatter_figure=sc_fig)
@@ -192,7 +194,7 @@ class tsui(SmartTimeSeries):
                     if self.save_line_graphs_numerical:
                         self._save_line(column=column, numerical_fig=fig)
                 elif self.visualize_scatter:
-                    fig = self._create_scatter_visualization(column=column, marginal_y=self.scatter_marginal)
+                    fig = self._create_scatter_visualization(column=column, marginal_y=self.marginal_y)
                     if self.save_scatter_graphs:
                         self._save_scatter(column=column, scatter_figure=fig)
                 else:
@@ -202,7 +204,8 @@ class tsui(SmartTimeSeries):
                     st.plotly_chart(fig, width="stretch")
 
     def _create_all_numerical_cols_sl(self):
-        st.header(f"Distrubition of all columns on one graph")
+        if self.visualize_line_numerical or self.visualize_scatter:
+            st.header(f"Distrubition of all numerical columns on one graph")
 
         if self.visualize_line_graph:
             st.plotly_chart(self._create_line_visualization(column=self.numerical_columns), width="stretch")
@@ -210,13 +213,14 @@ class tsui(SmartTimeSeries):
             st.plotly_chart(self._create_scatter_visualization(column=self.numerical_columns), width="stretch")
 
     def _create_assignments_ux(self):
+        st.sidebar.header("Assignments")
         self.index_column = st.sidebar.selectbox("Index column", options= [None] + self.all_columns)
         self.date_column = st.sidebar.selectbox("Date column", options= [None] + self.all_columns)
 
         selected_label = st.sidebar.selectbox("Select Date Format", options=list(self.DATE_FORMATS.keys()))
 
         if selected_label == "Custom format (Enter below)":
-            self.chosen_format = st.sidebar.text_input(
+            self.date_format = st.sidebar.text_input(
             "Enter Custom Format String",
             value="%Y-%m-%d",
             help="Specify format directives starting with %. Example: %Y-%m-%d for 2026-06-06. Characters between them act as separators."
@@ -229,26 +233,69 @@ class tsui(SmartTimeSeries):
                 * **Time:** `%H` (Hours) | `%M` (Minutes) | `%S` (Seconds)
                 """)
         else:
-            self.chosen_format = self.DATE_FORMATS[selected_label]
+            self.date_format = self.DATE_FORMATS[selected_label]
 
     def _df_initilaizer(self):
+        st.sidebar.header("Data uploader")
         df = st.sidebar.file_uploader("Insert your DataFrame", type="csv")
         if df:
-            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.load_data(df, return_columns=True)
+            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = load_data(df, return_columns=True)
+        st.sidebar.divider()
 
-    def _create_starter_ux(self):
+    def _create_numerical_sidebar(self):
+        st.sidebar.header("Numerical Options")
         self.visualize_line_graph = st.sidebar.checkbox("Visualize Line Graph", value=False)
         self.visualize_scatter = st.sidebar.checkbox("Visualize Scatter Graph", value=False)
+
+    def _create_categorical_sidebar(self):
+        st.sidebar.header("Categorical Options")
+        self.visualize_line_categorical = st.sidebar.checkbox("Visualize line chart")
+        self.visualize_area = st.sidebar.checkbox("Visualize area chart")
+
+    def _create_advanced_options(self):
+        st.sidebar.header("Advanced Options")
         self.scatter_marginal = st.sidebar.selectbox("Marginal y (advanced)", options=get_args(marginal_literal))
+
+    def _create_starter_ux(self):
+        st.sidebar.divider()
+        if self.numerical_columns:
+            self._create_numerical_sidebar()
+        if self.categorical_columns:
+            if self.numerical_columns:
+                st.sidebar.divider()
+            self._create_categorical_sidebar()
+        st.sidebar.divider()
+        self.advanced_optioins= st.sidebar.checkbox("Advanced Options", value=False)
+        if self.advanced_optioins:
+            if self.categorical_columns or self.numerical_columns:
+                st.sidebar.divider()
+                self._create_advanced_options()
+
+    def _apply_transformations(self):
+        if self.index_column:
+            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.handle_index_assignment(
+                data=self.df, index_column=self.index_column, 
+                numerical_columns=self.numerical_columns, 
+                categorical_columns=self.categorical_columns,
+                return_columns=True
+            )
+        
+        if self.date_column:
+            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.handle_date_assignment(
+                data=self.df, date_column=self.date_column, 
+                numerical_columns=self.numerical_columns, categorical_columns=self.categorical_columns, 
+                date_format=self.date_format,
+                return_columns=True
+            )
 
     def __call__(self):
         self._create_savings()
         if not self.df:
             self._df_initilaizer()
-        self._create_starter_ux()
         if isinstance(self.df, pd.DataFrame):
             self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
             self._create_assignments_ux()
+            self._create_starter_ux()
             self._apply_transformations()
             self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
             if Data.date_check(data=self.df, date_column=self.date_column):
@@ -262,4 +309,5 @@ class tsui(SmartTimeSeries):
             st.title("Provide a DataFrame from sidebar.")
 
 if __name__ == "__main__":
-    tsui(visualize_treemap=True, save_treemap=True)()
+    st.set_page_config("Time Series")
+    tsui()()
