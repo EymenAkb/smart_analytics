@@ -84,7 +84,7 @@ class Data:
     
     @staticmethod
     def assign_date(data:pd.DataFrame, date_column, date_format="mixed") -> pd.DataFrame:
-        if not isinstance(date_column, (int, str)):
+        if not isinstance(date_column, str):
             warnings.warn("Provided date column isn't in the waited formats returning the DataFrame without assigning.", category=UserWarning)
             return data
         try:
