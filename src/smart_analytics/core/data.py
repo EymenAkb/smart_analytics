@@ -1,6 +1,7 @@
 import pandas as pd
 import warnings
 import io
+from pathlib import Path
 import numpy as np
 from pandas.api.types import is_datetime64_any_dtype
 
@@ -24,8 +25,21 @@ class Data:
             elif isinstance(df, pd.DataFrame):
                 df = df.copy()
         
-            elif isinstance(df, str):
-                df = pd.read_csv(df)
+            elif isinstance(df, (str, Path)):
+                path = Path(df)
+                ext = path.suffix.lower()
+
+                if ".csv" in ext:
+                    df = pd.read_csv(df)
+                elif ".json" in ext:
+                    df = pd.read_json(df)
+                elif ".xlsx" in ext:
+                    df = pd.read_excel(df)
+                else:
+                    if can_return_none:
+                        warnings.warn("Error: Invalid or missing dataframe input occurred during DataFrame reading. Returning None.", category=UserWarning)
+                        return None
+                    raise ValueError("Invalid or missing dataframe input.")
             
             else:
                 if can_return_none:
@@ -40,11 +54,11 @@ class Data:
             else:
                 raise ValueError(f"Couldn't read the dataframe: {e}")
 
-        if index_col:
-            df = Data.handle_index_assignment(data=df, index_column=index_col)
+        if index_col is not None:
+            df = Data.assign_index(data=df, index_column=index_col)
 
-        if date_col:
-            df = Data.handle_date_assignment(data=df, date_column=date_col, date_format=date_format)
+        if date_col is not None:
+            df = Data.assign_date(data=df, date_column=date_col, date_format=date_format)
 
         if return_columns:
             numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=df, date_column=date_col)
@@ -77,70 +91,59 @@ class Data:
         if date_column:
             if isinstance(date_column, str):
                 all_cols.append(date_column)
-            elif isinstance(date_column, list):
-                all_cols + date_column
+            elif isinstance(date_column, (list, tuple, set)):
+                all_cols.extend(date_column)
         
         return numerical_columns, categorical_columns, all_cols
     
     @staticmethod
-    def assign_date(data:pd.DataFrame, date_column, date_format="mixed") -> pd.DataFrame:
-        if not isinstance(date_column, str):
+    def assign_date(data: pd.DataFrame, date_column=None, numerical_columns:list=None, categorical_columns:list = None, 
+                    date_format="mixed", return_columns:bool=False) -> pd.DataFrame:
+        if not isinstance(date_column, (str, int, list)):
             warnings.warn("Provided date column isn't in the waited formats returning the DataFrame without assigning.", category=UserWarning)
             return data
         try:
+            if isinstance(date_column, list):
+                if len(date_column) == 1:
+                    date_column = date_column[0]
+                else:
+                    warnings.warn("Provided date column isn't in the waited formats returning the DataFrame without assigning.", category=UserWarning)
+                    return data
+            if isinstance(date_column, int):
+                date_column = data.columns[date_column]
             data[date_column] = pd.to_datetime(data[date_column], format=date_format)
         except Exception as e:
             msg = f"Could not assign the column: {date_column} as date column for: {e} error. Continuing without assigning."
             warnings.warn(msg, category=UserWarning)
-        return data
-
-    @staticmethod
-    def handle_date_assignment(data: pd.DataFrame, date_column=None, numerical_columns:list=None, categorical_columns:list = None, 
-                               date_format="mixed", return_columns:bool=False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
-        """Attempts to set date; drops column from column lists if it succeeds."""
-        with warnings.catch_warnings(record=True) as captured:
-            warnings.simplefilter("always")
-            data = Data.assign_date(data=data, date_column=date_column, date_format=date_format)
-
-        warning_occurred = any(
-            issubclass(w.category, UserWarning) and "Could not assign the column" in str(w.message)
-            for w in captured
-        )
-
         if return_columns:
             numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
                                                                 categorical_columns=categorical_columns, date_column=date_column)
             return data, numerical_columns, categorical_columns, all_cols
-        
         return data
 
     @staticmethod
-    def assign_index(data: pd.DataFrame, index_column=None) -> pd.DataFrame:
-        if not isinstance(index_column, (str, int)):
+    def assign_index(data:pd.DataFrame, index_column=None, numerical_columns=None, 
+                    categorical_columns=None, date_column=None, return_columns:bool=False) -> pd.DataFrame:
+        if not isinstance(index_column, (str, int, list)):
             warnings.warn("index column isn't in the waited formats returning the DataFrame normally", category=UserWarning)
             return data
         try:
-            if isinstance(index_column, int):
+            if isinstance(index_column, list):
+                if len(index_column) == 1:
+                    index_column = index_column[0]
+                else:
+                    data.set_index(index_column, inplace=True)
+            elif isinstance(index_column, int):
                 index_column = data.columns[index_column]
-            data.set_index(index_column, inplace=True)
+                data.set_index(index_column, inplace=True)
+            elif isinstance(index_column, str):
+                data.set_index(index_column, inplace=True)
+            else:
+                msg =  f"Index column: {index_column} isn't in the awaited types: (str, int, list). Returning the Data normally"
+                warnings.warn(msg, category=UserWarning)
         except Exception as e:
             msg =  f"Could not assign the column: {index_column} as index column for: {e} error. Continuing without assigning."
             warnings.warn(msg, category=UserWarning)
-        return data
-
-    @staticmethod
-    def handle_index_assignment(data:pd.DataFrame, index_column=None, numerical_columns=None, 
-                                categorical_columns=None, date_column=None, return_columns:bool=False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
-        """Attempts to set index; drops column from columns lists if it succeeds."""
-        with warnings.catch_warnings(record=True) as captured:
-            warnings.simplefilter("always")
-            data = Data.assign_index(data=data, index_column=index_column)
-
-        warning_occurred = any(
-            issubclass(w.category, UserWarning) and "Could not assign the column" in str(w.message)
-            for w in captured
-        )
-
         if return_columns:
             numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data, numerical_columns=numerical_columns, 
                                                                     categorical_columns=categorical_columns, date_column=date_column)
@@ -156,7 +159,6 @@ class Data:
         low = q_25 - (1.5 * iqr)
         high = q_75 + (1.5 * iqr)
         return (low, high)
-
 
     @staticmethod
     def return_iqr(data, columns):
@@ -184,8 +186,28 @@ class Data:
     def date_check(data: pd.DataFrame, date_column: str | int = None) -> bool:
         if not isinstance(data, pd.DataFrame):
             raise TypeError("Provided DataFrame isn't a pandas DataFrame object.")
+        if not isinstance(date_column, (str, int, list)):
+            raise ValueError(f"The date column: {date_column} isn't in the awaited types: (str, int, list)")
 
-        if date_column is None or date_column not in data.columns:
-            return False
-        
-        return is_datetime64_any_dtype(data[date_column])
+        if isinstance(date_column, list):
+            if len(date_column) == 1:
+                date_column = date_column[0]
+            else:
+                if len(date_column) < 1:
+                    raise ValueError("Provided date_column is empty.")
+                for column in date_column:
+                    val = is_datetime64_any_dtype(data[column])
+                    if val == True:
+                        continue
+                    else:
+                        return False
+                return True
+                
+        if isinstance(date_column, int):
+            date_column = data.columns[date_column]
+
+        if isinstance(date_column, str):
+            return is_datetime64_any_dtype(data[date_column])
+
+        else:
+            raise TypeError(f"The date column: {date_column} isn't in the awaited types: (str, int, list)")
