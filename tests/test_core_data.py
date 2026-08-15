@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from smart_analytics.core.data import Data
 import pytest
+import json
 
 # ==========================================
 # TESTS FOR load_data
@@ -48,6 +49,20 @@ def test_load_data_invalid_input_returns_none():
     with pytest.warns(UserWarning):
         result = Data.load_data(df=12345, can_return_none=True)
         assert result is None
+
+def test_load_data_json(tmp_path):
+    json_file = tmp_path / "test_data.json"
+    json_file.write_text(json.dumps({"id": [101, 202], "status": ["ok", "fail"]}))
+    df, numerical_columns, categorical_columns, all_cols = Data.load_data(json_file, return_columns=True)
+
+    assert isinstance(df, pd.DataFrame)
+    assert isinstance(numerical_columns, list)
+    assert "id" in numerical_columns
+    assert isinstance(categorical_columns, list)
+    assert "status" in categorical_columns
+    assert isinstance(all_cols, list)
+    assert "id" in all_cols
+    assert "status" in all_cols
 
 # ==========================================
 # TESTS FOR column_assigner & date_check
@@ -107,6 +122,31 @@ def test_assign_date_invalid_column_warning():
         result_df = Data.assign_date(df, "non_existent_col")
         assert result_df is not None
 
+def test_assign_date_int():
+    df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"]})
+    result_df = Data.assign_date(df, date_column=0, date_format="%d/%m/%Y")
+    assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
+
+def test_assign_date_single_element_list():
+    df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"]})
+    result_df = Data.assign_date(df, date_column=["date_col"], date_format="%d/%m/%Y")
+    assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
+
+def test_assign_date_multiple_element_list():
+    df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"], "date_col2": ["02/01/2026", "03/01/2026"]})
+    result_df = Data.assign_date(df, date_column=["date_col"], date_format="%d/%m/%Y")
+    assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
+
+def test_assign_date_multiple_elements_list_and_date_format_as_list():
+    df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"], "date_col2": ["02-01-2026", "03-01-2026"]})
+    result_df = Data.assign_date(df, date_column=["date_col"], date_format=["%d/%m/%Y", "%d-%m-%Y"])
+    assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
+
+def test_assign_date_multiple_elements_list_and_date_format_as_dict():
+    df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"], "date_col2": ["02-01-2026", "03-01-2026"]})
+    result_df = Data.assign_date(df, date_column=["date_col"], date_format={"date_col":"%d/%m/%Y","date_col2": "%d-%m-%Y"})
+    assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
+
 # ==========================================
 # TESTS FOR assign_index
 # ==========================================
@@ -124,6 +164,29 @@ def test_assign_index_by_int():
     result_df = Data.assign_index(df, index_column=0)
     
     assert result_df.index.name == "id"
+
+def test_assign_index_by_list():
+    df = pd.DataFrame({"id": [1, 2], "id2": [3, 4]})
+    result_df = Data.assign_index(data=df, index_column=["id", "id2"])
+
+    assert "id" in result_df.index.names
+    assert "id2" in result_df.index.names
+
+def test_assign_index_single_element_list():
+    """Catch the unboxing bug for single-item lists."""
+    df = pd.DataFrame({"id": [1, 2], "val": [10, 20]})
+    res = Data.assign_index(df, index_column=["id"])
+    assert res.index.name == "id"
+
+def test_assign_index_by_tuple_and_set():
+    """Verify tuples and sets set multi-level index properly."""
+    df = pd.DataFrame({"a": [1, 2], "b": [3, 4], "val": [10, 20]})
+    
+    res_tuple = Data.assign_index(df.copy(), index_column=("a", "b"))
+    assert res_tuple.index.names == ["a", "b"]
+
+    res_set = Data.assign_index(df.copy(), index_column={"b", "a"})
+    assert res_set.index.names == ["a", "b"]
 
 # ==========================================
 # TESTS FOR calculate_iqr & return_iqr
