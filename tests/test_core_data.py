@@ -84,12 +84,13 @@ def test_date_check():
         "dt": pd.to_datetime(["2026-01-01"]),
         "not_dt": [123]
     })
+    
     assert Data.date_check(df, "dt") is True
     assert Data.date_check(df, "not_dt") is False
     assert Data.date_check(df, "missing") is False
 
 # ==========================================
-# TESTS FOR assign_date & handle_date_assignment
+# TESTS FOR assign_date
 # ==========================================
 
 def test_assign_date_success():
@@ -106,24 +107,8 @@ def test_assign_date_invalid_column_warning():
         result_df = Data.assign_date(df, "non_existent_col")
         assert result_df is not None
 
-def test_handle_date_assignment():
-    """Handles successful date setup and returns columns when requested."""
-    df = pd.DataFrame({
-        "val": [10, 20],
-        "date": ["2026-01-01", "2026-01-02"]
-    })
-    res_df, num, cat, all_cols = Data.handle_date_assignment(
-        data=df, date_column="date", date_format="%Y-%m-%d", return_columns=True
-    )
-    
-    assert pd.api.types.is_datetime64_any_dtype(res_df["date"])
-    assert "val" in num
-    assert "date" in all_cols
-    assert "date" not in num
-    assert "date" not in cat
-
 # ==========================================
-# TESTS FOR assign_index & handle_index_assignment
+# TESTS FOR assign_index
 # ==========================================
 
 def test_assign_index_by_string():
@@ -139,18 +124,6 @@ def test_assign_index_by_int():
     result_df = Data.assign_index(df, index_column=0)
     
     assert result_df.index.name == "id"
-
-def test_handle_index_assignment_with_return_columns():
-    """Handles index assignment and accurately returns updated column categories."""
-    df = pd.DataFrame({"id": ["a", "b"], "num": [10, 20], "cat": ["x", "y"]})
-    res_df, num, cat, all_cols = Data.handle_index_assignment(
-        data=df, index_column="id", return_columns=True
-    )
-    
-    assert res_df.index.name == "id"
-    assert "num" in num
-    assert "cat" in cat
-    assert "id" not in all_cols
 
 # ==========================================
 # TESTS FOR calculate_iqr & return_iqr

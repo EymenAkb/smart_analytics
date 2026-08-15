@@ -184,6 +184,8 @@ class Data:
 
     @staticmethod
     def date_check(data: pd.DataFrame, date_column: str | int = None) -> bool:
+        if date_column is None:
+            return False
         if not isinstance(data, pd.DataFrame):
             raise TypeError("Provided DataFrame isn't a pandas DataFrame object.")
         if not isinstance(date_column, (str, int, list)):
@@ -195,6 +197,8 @@ class Data:
             else:
                 if len(date_column) < 1:
                     raise ValueError("Provided date_column is empty.")
+                if not date_column in data.columns:
+                    return False
                 for column in date_column:
                     val = is_datetime64_any_dtype(data[column])
                     if val == True:
@@ -207,7 +211,10 @@ class Data:
             date_column = data.columns[date_column]
 
         if isinstance(date_column, str):
-            return is_datetime64_any_dtype(data[date_column])
+            if date_column in data:
+                return is_datetime64_any_dtype(data[date_column])
+            else:
+                return False
 
         else:
             raise TypeError(f"The date column: {date_column} isn't in the awaited types: (str, int, list)")

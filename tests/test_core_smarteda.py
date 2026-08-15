@@ -91,7 +91,7 @@ def test_save_px_html_generation():
     assert "plotly" in html_output
 
 
-def __str__method_representation():
+def test__str__method_representation():
     df = pd.DataFrame({"col1": [1, 2], "col2": ["x", "y"]})
     eda = SmartEDA(df=df, dataset_name="string_test")
     

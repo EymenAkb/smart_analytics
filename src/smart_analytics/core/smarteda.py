@@ -172,7 +172,7 @@ class SmartEDA:
 
     def _apply_transformations(self):
         if self.index_column:
-            self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.handle_index_assignment(
+            self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.assign_index(
                 data=self.df, index_column=self.index_column, 
                 numerical_columns=self.numeric_cols, 
                 categorical_columns=self.categorical_cols,
@@ -181,7 +181,7 @@ class SmartEDA:
             )
         
         if self.date_column:
-            self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.handle_date_assignment(
+            self.df, self.numeric_cols, self.categorical_cols, self.all_cols = Data.assign_date(
                 data=self.df, date_column=self.date_column, 
                 numerical_columns=self.numeric_cols, categorical_columns=self.categorical_cols, 
                 date_format=self.date_format, 
@@ -255,4 +255,8 @@ Some samples from the dataset:
         
 
 if __name__ == "__main__":
-    pass
+    import seaborn as sns
+    df = sns.load_dataset("titanic")
+    eda = SmartEDA(df=df)
+
+    #handle_date_assignment
