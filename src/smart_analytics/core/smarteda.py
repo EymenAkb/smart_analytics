@@ -225,7 +225,6 @@ class SmartEDA:
         self.html_fig = "\n".join(html_content)
         return self.html_fig
 
-
     def __str__(self):
         result = f"""
 Dataset details:
@@ -251,12 +250,11 @@ Some samples from the dataset:
         return result
     
     def __getitem__(self, idx):
-        return self.df[self.all_cols[idx]]
+        return self.df.columns[idx]
+
+    def __len__(self):
+        return len(self.df.columns)
         
 
 if __name__ == "__main__":
-    import seaborn as sns
-    df = sns.load_dataset("titanic")
-    eda = SmartEDA(df=df)
-
-    #handle_date_assignment
+    pass

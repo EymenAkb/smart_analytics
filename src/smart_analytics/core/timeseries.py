@@ -82,7 +82,7 @@ class SmartTimeSeries:
                     if self.save_line_categorical:
                         self._save_categorical_line(column=column, categorical_fig=line_fig)
                 if self.visualize_area:
-                    area_fig = self._create_area_visualization(column=column, color=column, groupnorm="percent")
+                    area_fig = self._create_area_visualization(column=column, groupnorm="percent")
                     if self.save_area_graphs:
                         self._save_area(column=column, categorical_fig=area_fig)
                         
@@ -136,7 +136,7 @@ class SmartTimeSeries:
 
     def _apply_transformations(self):
         if self.index_column:
-            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.handle_index_assignment(
+            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.assign_index(
                 data=self.df, index_column=self.index_column, 
                 numerical_columns=self.numerical_columns, 
                 categorical_columns=self.categorical_columns,
@@ -144,7 +144,7 @@ class SmartTimeSeries:
             )
         
         if self.date_column:
-            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.handle_date_assignment(
+            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.assign_date(
                 data=self.df, date_column=self.date_column, 
                 numerical_columns=self.numerical_columns, categorical_columns=self.categorical_columns, 
                 date_format=self.date_format,
@@ -152,15 +152,44 @@ class SmartTimeSeries:
             )
 
     def __call__(self, df: pd.DataFrame | str | io.BytesIO | None, date_column:str=None, date_format:str="mixed"):
-        if not isinstance(self.df, pd.DataFrame):
-            self.df = Data.load_data(df=df, date_col=date_column, date_format=date_format)
+        read_df = Data.load_data(df=df, date_col=date_column, date_format=date_format, can_return_none=True)
+        if isinstance(read_df, pd.DataFrame):
+            self.df = read_df
+
         if isinstance(self.df, pd.DataFrame) and Data.date_check(self.df, date_column=self.date_column):
             self._create_savings()
             self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
             self._apply_transformations()
             self._render_plots()
 
+    def __str__(self):
+        result = f"""
+Dataset details:
+
+Total column numbers: {len(self.numerical_columns + self.categorical_columns)}
+
+----------------
+
+Empty rows per column:
+{self.df.isnull().sum()}
+
+----------------
+
+Dataset information:
+{self.df.info()}
+
+----------------
+
+Some samples from the dataset:
+{self.df.head()}
+"""
+        return result
+    
+    def __getitem__(self, idx):
+        return self.df.columns[idx]
+
+    def __len__(self):
+        return len(self.df.columns)
+
 if __name__ == "__main__":
-    df = pd.read_csv("Py.csv")
-    ts = SmartTimeSeries(df=df, date_column="Date", date_format="%Y", visualize_scatter=True, save_scatter_graphs=True, scatter_marginal_y="violin")
-    ts.scatter_figures[0].show()
+    pass
