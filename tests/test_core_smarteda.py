@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import io
 import plotly.graph_objects as go
+import json
 
 # ==========================================
 # Tests for Initialization & Core Data Types
@@ -19,6 +20,16 @@ def test_smarteda_init_with_dataframe():
     assert "col2" in eda.numeric_cols
     assert "col3" in eda.categorical_cols
 
+def test_smarteda_init_json(tmp_path):
+    json_file = tmp_path / "test_data.json"
+    json_file.write_text(json.dumps({"id": [101, 202], "status": ["ok", "fail"], "date": ["2024/01/01", "2024/01/02"]}))
+    eda = SmartEDA(df=json_file, date_column="date", date_format="%Y/%m/%d")
+
+    assert "id" in eda.numeric_cols
+    assert "date" in eda.all_cols
+    assert "status" in eda.categorical_cols
+    assert "date" not in eda.numeric_cols
+    assert "date" not in eda.categorical_cols
 
 def test_smarteda_init_with_io():
     csv_data = b"col1,col2,date\n1,something,01/01/2024\n3,something,02/01/2024"
@@ -110,3 +121,16 @@ def test_callable_instance():
     eda(df=df2)
     assert "col2" in eda.numeric_cols
     assert "col1" not in eda.numeric_cols
+
+def test_getitem_method():
+    df = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
+    eda = SmartEDA(df=df)
+
+    assert eda[0] == "col1"
+    assert eda[1] == "col2"
+
+def test_len_method():
+    df = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
+    eda = SmartEDA(df=df)
+
+    assert len(eda) == 2
