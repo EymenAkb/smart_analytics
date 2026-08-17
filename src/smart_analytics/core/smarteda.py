@@ -14,7 +14,7 @@ HistogramBarModes = Literal["relative", "overlay", "group", "stack"]
 class SmartEDA:
     """
     SmartEDA provides automated exploratory data analysis (EDA)
-    including data intuiton and visualization for pandas DataFrames.
+    including data intuiton and visualization for Data Analytics.
 
     Parameters
     ----------
@@ -26,6 +26,48 @@ class SmartEDA:
     
     visualize_categorical : bool, default=False
         Whether to display categorical feature distributions.
+    
+    visualize heatmap : bool, deafult=False
+        Wheter to display correlation matrix.
+
+    save_numerical_figures : bool, default=False
+        Wheter to save the numerical visualizations.
+    
+    histogram_marginal: [None, "box", "rug", "violin"], default=None
+        What to show on marginal value over Histograms. (If color is set to anything marginal might fall back to "rug")
+    
+    histogram_color_method : bool, default=False
+        Wheter to use column as color options or not for histograms.
+
+    histogram_bar_mode: ["relative", "overlay", "group", "stack"], default="relative"
+        What to pass into histograms barmode parameter.
+    
+    handle_iqr: ["ignore", "nan"], default="ignore"
+        How to handle iqr values. (outliers)
+        
+    show_iqr_box: bool, default=False
+        Wheter to display box plots for iqr.
+
+    save_categorical_figures: bool, default=False
+        Wheter to save the categorical visualizations.
+
+    save_heatmap_figure: bool, default=False
+        Wheter to save the correlation matrix visualization.
+
+    show_info: bool, default=False
+        Wheter to display information about dataset.
+
+    dataset_name: str, default="dataset"
+        What to display as dataset name for summurazing purposes.
+
+    date_column: str | int | None, default=None
+        Assigner for Data's date column.
+    
+    date_format: str, default="mixed"
+        Date format for the provided date column.
+
+    index_column: str | int | list| tuple | set | None, default=None
+        Assigner for provided dataframes index column(s).
     """
     def __init__(self,
         df: pd.DataFrame | str | io.BytesIO = None,
@@ -34,18 +76,17 @@ class SmartEDA:
         visualize_heatmap: bool = False,
         save_numerical_figures: bool = False,
         histogram_marginal: HistogramMarginalValues = None,
+        histogram_color_method: bool = False,
+        histogram_bar_mode: HistogramBarModes = "relative",
+        handle_iqr: IQRHandleMethod = "ignore",
+        show_iqr_box: bool = False,
         save_categorical_figures: bool = False,
         save_heatmap_figure: bool = False,
         show_info: bool = False,
         dataset_name:str = "dataset",
-        saving_directory: str | None = None,
-        handle_iqr: IQRHandleMethod = "ignore",
-        histogram_color_method: bool = False,
-        histogram_bar_mode: HistogramBarModes = "relative",
-        show_iqr_box: bool = False,
         date_column: str | int | None = None,
-        date_format: str = None,
-        index_column: str | int | None = None):
+        date_format: str = "mixed",
+        index_column: str | int | list| tuple | set | None = None):
         
         self.iqr_methods = get_args(IQRHandleMethod)
         self.hist_marginal_methods = get_args(HistogramMarginalValues)
@@ -80,10 +121,6 @@ class SmartEDA:
         self.date_column = date_column
         self.date_format = date_format
         self.index_column = index_column
-        if saving_directory:
-            self.save_path = os.path.join(saving_directory)
-        else:
-            self.save_path = os.path.join(".", dataset_name)
 
         self.df = Data.load_data(df=df, index_col=index_column, date_col=date_column, date_format=date_format, can_return_none=True, return_columns=False)
 
@@ -279,6 +316,4 @@ Some samples from the dataset:
         
 
 if __name__ == "__main__":
-    df = px.data.tips()
-    eda = SmartEDA(df=df, visualize_numerical=True, save_numerical_figures=True, histogram_marginal="violin")
-    eda.numerical_hist_list[0].show()
+    pass

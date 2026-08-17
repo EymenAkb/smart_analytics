@@ -18,6 +18,63 @@ def load_data(df: str | pd.DataFrame | io.BytesIO | Path | None = None, index_co
     return Data.load_data(df=df, index_col=index_col, date_col=date_col, date_format=date_format, can_return_none=can_return_none, return_columns=return_columns)
 
 class smartedaui(SmartEDA):
+    """
+    smartedaui provides user interface for exploratory data analysis (EDA) inheriting from ``SmartEDA``
+    including data intuiton and visualization for Data Analytics.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataset.
+        
+    visualize_numerical : bool, default=False
+        Whether to display numeric feature distributions.
+        
+    visualize_categorical : bool, default=False
+        Whether to display categorical feature distributions.
+        
+    visualize heatmap : bool, deafult=False
+        Wheter to display correlation matrix.
+    
+    save_numerical_figures : bool, default=False
+        Wheter to save the numerical visualizations.
+        
+    histogram_marginal: [None, "box", "rug", "violin"], default=None
+        What to show on marginal value over Histograms. (If color is set to anything marginal might fall back to "rug")
+        
+    histogram_color_method : bool, default=False
+        Wheter to use column as color options or not for histograms.
+
+    histogram_bar_mode: ["relative", "overlay", "group", "stack"], default="relative"
+        What to pass into histograms barmode parameter.
+        
+    handle_iqr: ["ignore", "nan"], default="ignore"
+        How to handle iqr values. (outliers)
+            
+    show_iqr_box: bool, default=False
+        Wheter to display box plots for iqr.
+    
+    save_categorical_figures: bool, default=False
+        Wheter to save the categorical visualizations.
+    
+    save_heatmap_figure: bool, default=False
+        Wheter to save the correlation matrix visualization.
+    
+    show_info: bool, default=False
+        Wheter to display information about dataset.
+    
+    dataset_name: str, default="dataset"
+        What to display as dataset name for summurazing purposes.
+    
+    date_column: str | int | None, default=None
+        Assigner for Data's date column.
+        
+    date_format: str, default="mixed"
+        Date format for the provided date column.
+    
+    index_column: str | int | list| tuple | set | None, default=None
+        Assigner for provided dataframes index column(s).
+    """
     DATE_FORMATS = {
         "YYYY-MM-DD (e.g., 2026-06-06)": "%Y-%m-%d",
         "YYYY-MM-DD HH:MM:SS (e.g., 2026-06-06 14:30:00)": "%Y-%m-%d %H:%M:%S",
@@ -176,7 +233,10 @@ class smartedaui(SmartEDA):
             st.sidebar.text("Advanced Histogram Options")
             self.histogram_color_method = st.sidebar.selectbox("Histogram color method", options=[None, "Column"])
             self.histogram_bar_mode = st.sidebar.selectbox("Histogram bar mode", options=self.hist_bar_modes)
-            self.histogram_marginal = st.sidebar.selectbox("Histogram marginal", options=self.hist_marginal_methods)
+            if not self.histogram_color_method:
+                self.histogram_marginal = st.sidebar.selectbox("Histogram marginal", options=self.hist_marginal_methods)
+            else:
+                self.histogram_marginal = st.sidebar.selectbox("Histogram marginal", options=[None, "rug"])
         self.show_iqr_box = st.sidebar.checkbox("Show box graph", value=self.show_iqr_box,
             help="If handle iqr is set to 'nan' the box plots might show wrong details!")
         self.vishm = st.sidebar.checkbox("Visualize heatmap", value=self.vishm)
@@ -210,8 +270,8 @@ class smartedaui(SmartEDA):
         else:
             self.chosen_format = self.DATE_FORMATS[selected_label]
 
-    def _create_other_options_ux(self):
-        st.sidebar.header("Other Options")
+    def _create_configurations_ux(self):
+        st.sidebar.header("Starter Configurations")
         self.show_info = st.sidebar.checkbox("Print data information", value=self.show_info)
         st.session_state["advanced_options"] = st.sidebar.checkbox("Advanced Options", value=False)
 
@@ -241,11 +301,11 @@ class smartedaui(SmartEDA):
         st.sidebar.divider()
         self._create_assignments_ux()
         st.sidebar.divider()
+        self._create_configurations_ux()
+        st.sidebar.divider()
         self._create_numerical_ux()
         st.sidebar.divider()
         self._create_categorical_ux()
-        st.sidebar.divider()
-        self._create_other_options_ux()
 
     def __call__(self):
         self._df_initilazier()
