@@ -8,7 +8,8 @@ import warnings
 from smart_analytics.core.data import Data
 
 IQRHandleMethod = Literal["ignore", "nan"]
-
+HistogramMarginalValues = Literal[None, "box", "rug", "violin"]
+HistogramBarModes = Literal["relative", "overlay", "group", "stack"]
 
 class SmartEDA:
     """
@@ -32,24 +33,40 @@ class SmartEDA:
         visualize_categorical: bool = False,
         visualize_heatmap: bool = False,
         save_numerical_figures: bool = False,
+        histogram_marginal: HistogramMarginalValues = None,
         save_categorical_figures: bool = False,
         save_heatmap_figure: bool = False,
         show_info: bool = False,
         dataset_name:str = "dataset",
         saving_directory: str | None = None,
         handle_iqr: IQRHandleMethod = "ignore",
+        histogram_color_method: bool = False,
+        histogram_bar_mode: HistogramBarModes = "relative",
         show_iqr_box: bool = False,
         date_column: str | int | None = None,
         date_format: str = None,
         index_column: str | int | None = None):
         
         self.iqr_methods = get_args(IQRHandleMethod)
+        self.hist_marginal_methods = get_args(HistogramMarginalValues)
+        self.hist_bar_modes = get_args(HistogramBarModes)
         handle_iqr = handle_iqr.lower().strip()
 
         if not handle_iqr in self.iqr_methods:
             warnings.warn(f"Invalid method '{handle_iqr}'. Expected one of {self.iqr_methods}, falling back to 'ignore'.", category=UserWarning)
             handle_iqr = "ignore"
 
+        if not histogram_marginal in self.hist_marginal_methods:
+            warnings.warn(f"Invalid marginal value: {histogram_marginal}. Expected one of: {self.hist_marginal_methods}, falling back to None", category=UserWarning)
+            histogram_marginal = None
+
+        if not histogram_bar_mode in self.hist_bar_modes:
+            warnings.warn(f"Invalid bar mode value: {histogram_marginal}. Expected one of: {self.hist_bar_modes}, falling back to overlay", category=UserWarning)
+            histogram_marginal = "relative"
+
+        self.histogram_color_method = histogram_color_method
+        self.histogram_bar_mode = histogram_bar_mode
+        self.histogram_marginal = histogram_marginal
         self.handle_iqr = handle_iqr
         self.visnum = visualize_numerical
         self.viscat = visualize_categorical
@@ -97,7 +114,8 @@ class SmartEDA:
 
         if (self.visnum or self.save_numerical) and isinstance(self.numeric_cols, list):
             for column in self.numeric_cols:
-                self._create_histogram_visualization(column=column)
+                self._create_histogram_visualization(column=column, marginal=self.histogram_marginal, 
+                                                     barmode=self.histogram_bar_mode, color=self.histogram_color_method)
 
         if (self.viscat or self.save_categorical) and isinstance(self.categorical_cols, list):
             for column in self.categorical_cols:
@@ -119,8 +137,12 @@ class SmartEDA:
         print("\nEmpty rows per column:")
         print(self.df.isnull().sum())
 
-    def _create_histogram_visualization(self, column):
-        numeric_figure = px.histogram(self.df, x=column, color=column, barmode="group", marginal="box")
+    def _create_histogram_visualization(self, column, marginal=None, barmode="relative", color=False):
+        if color:
+            color = column
+        else:
+            color = None
+        numeric_figure = px.histogram(self.df, x=column, marginal=marginal, barmode=barmode, color=color)
         numeric_figure.update_layout(bargap=0.0)
 
         if self.save_numerical:
@@ -257,4 +279,6 @@ Some samples from the dataset:
         
 
 if __name__ == "__main__":
-    pass
+    df = px.data.tips()
+    eda = SmartEDA(df=df, visualize_numerical=True, save_numerical_figures=True, histogram_marginal="violin")
+    eda.numerical_hist_list[0].show()
