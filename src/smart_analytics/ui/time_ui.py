@@ -37,6 +37,9 @@ class tsui(SmartTimeSeries):
                  save_treemap:bool=False,
                  scatter_marginal_y:marginal_literal=None):
         
+        if "advanced_options" not in st.session_state:
+            st.session_state["advanced_options"] = False
+        
         self.df = load_data(df=df, can_return_none=True, date_col=date_column, date_format=date_format)
         self.date_column = date_column
         self.date_format = date_format
@@ -51,9 +54,10 @@ class tsui(SmartTimeSeries):
         self.save_area_graphs = save_area_graphs
         self.save_line_categorical = save_line_categorical
         self.save_treemap = save_treemap
+        self.scatter_marginal_values = get_args(marginal_literal)
         
-        if not scatter_marginal_y in get_args(marginal_literal):
-            warnings.warn(f"{scatter_marginal_y} not in {get_args(marginal_literal)} falling back to None", category=UserWarning)
+        if not scatter_marginal_y in self.scatter_marginal_values:
+            warnings.warn(f"{scatter_marginal_y} not in {self.scatter_marginal_values} falling back to None", category=UserWarning)
             self.marginal_y = None
         else:
             self.marginal_y = scatter_marginal_y
@@ -222,7 +226,7 @@ class tsui(SmartTimeSeries):
         if selected_label == "Custom format (Enter below)":
             self.date_format = st.sidebar.text_input(
             "Enter Custom Format String",
-            value="%Y-%m-%d",
+            value="mixed",
             help="Specify format directives starting with %. Example: %Y-%m-%d for 2026-06-06. Characters between them act as separators."
             )
             with st.sidebar.expander("Quick Format Reference"):
@@ -235,6 +239,35 @@ class tsui(SmartTimeSeries):
         else:
             self.date_format = self.DATE_FORMATS[selected_label]
 
+    def _create_advanced_date_ux(self):
+        if not Data.date_check(self.df, date_column=self.date_column):
+            return
+        if not self.date_column or self.date_column not in self.df.columns:
+            return
+
+        st.sidebar.header("Date Filter")
+        self.unfiltered_df = self.df.copy()
+
+        min_v = self.unfiltered_df[self.date_column].min().date()
+        max_v = self.unfiltered_df[self.date_column].max().date()
+
+        selected_dates = st.sidebar.date_input(
+            label="Date Range",
+            min_value=min_v,
+            max_value=max_v,
+            value=(min_v, max_v)
+        )
+
+        if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+            start_date, end_date = selected_dates
+            
+            start_ts = pd.Timestamp(start_date)
+            end_ts = pd.Timestamp(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+
+            self.df = self.unfiltered_df[
+                self.unfiltered_df[self.date_column].between(start_ts, end_ts)
+            ]
+
     def _df_initilaizer(self):
         st.sidebar.header("Data uploader")
         df = st.sidebar.file_uploader("Insert your DataFrame", type="csv")
@@ -246,34 +279,35 @@ class tsui(SmartTimeSeries):
         st.sidebar.header("Numerical Options")
         self.visualize_line_graph = st.sidebar.checkbox("Visualize Line Graph", value=False)
         self.visualize_scatter = st.sidebar.checkbox("Visualize Scatter Graph", value=False)
+        if st.session_state["advanced_options"]:
+            self.marginal_y = st.sidebar.selectbox("Marginal-y", options=self.scatter_marginal_values)
 
     def _create_categorical_sidebar(self):
         st.sidebar.header("Categorical Options")
         self.visualize_line_categorical = st.sidebar.checkbox("Visualize line chart")
         self.visualize_area = st.sidebar.checkbox("Visualize area chart")
 
-    def _create_advanced_options(self):
-        st.sidebar.header("Advanced Options")
-        self.scatter_marginal = st.sidebar.selectbox("Marginal y (advanced)", options=get_args(marginal_literal))
+    def _create_configurations_ux(self):
+        st.sidebar.header("Starter Configurations")
+        st.session_state["advanced_options"] = st.sidebar.checkbox("Advanced Option")
 
     def _create_starter_ux(self):
         st.sidebar.divider()
+        self._create_configurations_ux()
+        st.sidebar.divider()
+        if st.session_state["advanced_options"]:
+            self._create_advanced_date_ux()
+            st.sidebar.divider()
         if self.numerical_columns:
             self._create_numerical_sidebar()
+            st.sidebar.divider()
         if self.categorical_columns:
-            if self.numerical_columns:
-                st.sidebar.divider()
             self._create_categorical_sidebar()
         st.sidebar.divider()
-        self.advanced_optioins= st.sidebar.checkbox("Advanced Options", value=False)
-        if self.advanced_optioins:
-            if self.categorical_columns or self.numerical_columns:
-                st.sidebar.divider()
-                self._create_advanced_options()
 
     def _apply_transformations(self):
         if self.index_column:
-            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.handle_index_assignment(
+            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.assign_index(
                 data=self.df, index_column=self.index_column, 
                 numerical_columns=self.numerical_columns, 
                 categorical_columns=self.categorical_columns,
@@ -281,7 +315,7 @@ class tsui(SmartTimeSeries):
             )
         
         if self.date_column:
-            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.handle_date_assignment(
+            self.df, self.numerical_columns, self.categorical_columns, self.all_columns = Data.assign_date(
                 data=self.df, date_column=self.date_column, 
                 numerical_columns=self.numerical_columns, categorical_columns=self.categorical_columns, 
                 date_format=self.date_format,
@@ -295,8 +329,8 @@ class tsui(SmartTimeSeries):
         if isinstance(self.df, pd.DataFrame):
             self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
             self._create_assignments_ux()
-            self._create_starter_ux()
             self._apply_transformations()
+            self._create_starter_ux()
             self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
             if Data.date_check(data=self.df, date_column=self.date_column):
                 self._create_ux_sl()
