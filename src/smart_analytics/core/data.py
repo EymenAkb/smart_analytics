@@ -101,21 +101,25 @@ class Data:
     
     @staticmethod
     def assign_date(data: pd.DataFrame, date_column: list | str | int | None = None, numerical_columns: list | str | None=None, 
-                    categorical_columns: list | str | None = None, date_format: list | str | dict ="mixed", 
+                    categorical_columns: list | str | None = None, date_format: str | list | dict | tuple |set ="mixed", 
                     return_columns: bool = False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
-        if not isinstance(date_column, (str, int, list)):
+        if not isinstance(date_column, (str, int, list, tuple, set)):
             warnings.warn("Provided date column isn't in the waited formats returning the DataFrame without assigning.", category=UserWarning)
             return data
         
         try:
-            if isinstance(date_column, list):
+            if isinstance(date_format, set):
+                date_format = list(set)
+            if isinstance(date_column, (list, set, tuple)):
                 for i,column in enumerate(date_column):
-                    if isinstance(date_format, list):
+                    if isinstance(date_format, (list, tuple)):
                         fmt = date_format[i]
                     elif isinstance(date_format, dict):
                         fmt = date_format[column]
-                    else:
+                    elif isinstance(date_format, str):
                         fmt = date_format
+                    else:
+                        fmt = "mixed"
                     data[column] = pd.to_datetime(data[column], format=fmt)
 
             if isinstance(date_column, int):
