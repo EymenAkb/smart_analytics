@@ -283,6 +283,26 @@ class smartedaui(SmartEDA):
             self.save_categorical = save_categorical_figure
             self.save_heatmap = save_heatmap_figure
 
+    def _save_px_html(self):
+        html_content = [
+            "<!DOCTYPE html>",
+            "<html>",
+            "<head>",
+            '    <meta charset="utf-8">',
+            '    <title>EDA Results</title>',
+            '    <script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>',
+            "</head>",
+            "<body>",
+            f"    <h1>EDA Results - {self.dataset}</h1>"
+        ]
+        for graph in self.figure_list:
+            graph_html = graph.to_html(full_html=False, include_plotlyjs=False)
+            html_content.append(graph_html)
+            html_content.append("<br><hr><br>\n")
+        
+        html_content.extend(["</body>", "</html>"])
+        return "\n".join(html_content)
+
     def _html_download_ux(self):
         st.sidebar.download_button(
                 label="Download EDA HTML Report",

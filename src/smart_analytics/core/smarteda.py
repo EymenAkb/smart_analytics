@@ -274,14 +274,14 @@ class SmartEDA:
             "<body>",
             f"    <h1>EDA Results - {self.dataset}</h1>"
         ]
-        
         for graph in self.figure_list:
             graph_html = graph.to_html(full_html=False, include_plotlyjs=False)
             html_content.append(graph_html)
             html_content.append("<br><hr><br>\n")
-            
+        
         html_content.extend(["</body>", "</html>"])
         self.html_fig = "\n".join(html_content)
+
         return self.html_fig
 
     def __str__(self):
