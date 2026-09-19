@@ -90,6 +90,7 @@ class smartedaui(SmartEDA):
         "MM/DD/YYYY HH:MM AM/PM (e.g., 06/06/2026 02:30 PM)": "%m/%d/%Y %I:%M %p",
         "Custom format (Enter below)": "custom"
     }
+
     def __init__(self,
         df: pd.DataFrame | str | io.BytesIO = None,
         visualize_numerical: bool = False,
@@ -100,7 +101,7 @@ class smartedaui(SmartEDA):
         save_categorical_figures: bool = False,
         save_heatmap_figure: bool = False,
         show_info: bool = False,
-        dataset_name:str = "dataset",
+        dataset_name: str = "dataset",
         handle_iqr: IQRHandleMethod = "ignore",
         histogram_color_method: bool = False,
         histogram_bar_mode: HistogramBarModes = "relative",
@@ -108,6 +109,7 @@ class smartedaui(SmartEDA):
         date_column: str | int | None = None,
         date_format: str = None,
         index_column: str | int | None = None):
+
         self.iqr_methods = get_args(IQRHandleMethod)
         self.hist_marginal_methods = get_args(HistogramMarginalValues)
         self.hist_bar_modes = get_args(HistogramBarModes)
@@ -116,17 +118,17 @@ class smartedaui(SmartEDA):
         if "advanced_options" not in st.session_state:
             st.session_state["advanced_options"] = False
 
-        if not handle_iqr in self.iqr_methods:
+        if handle_iqr not in self.iqr_methods:
             warnings.warn(f"Invalid method '{handle_iqr}'. Expected one of {self.iqr_methods}, falling back to 'ignore'.", category=UserWarning)
             handle_iqr = "ignore"
 
-        if not histogram_marginal in self.hist_marginal_methods:
+        if histogram_marginal not in self.hist_marginal_methods:
             warnings.warn(f"Invalid marginal value: {histogram_marginal}. Expected one of: {self.hist_marginal_methods}, falling back to None", category=UserWarning)
             histogram_marginal = None
 
-        if not histogram_bar_mode in self.hist_bar_modes:
-            warnings.warn(f"Invalid bar mode value: {histogram_marginal}. Expected one of: {self.hist_bar_modes}, falling back to overlay", category=UserWarning)
-            histogram_marginal = "relative"
+        if histogram_bar_mode not in self.hist_bar_modes:
+            warnings.warn(f"Invalid bar mode value: {histogram_bar_mode}. Expected one of: {self.hist_bar_modes}, falling back to relative", category=UserWarning)
+            histogram_bar_mode = "relative"
 
         self.histogram_color_method = histogram_color_method
         self.histogram_bar_mode = histogram_bar_mode
@@ -147,24 +149,18 @@ class smartedaui(SmartEDA):
 
         self.df = load_data(df=df, index_col=index_column, date_col=date_column, date_format=date_format, can_return_none=True, return_columns=False)
 
-        if isinstance(self.df, pd.DataFrame):
-            self._run()
-
-    def _run(self):
+    def run(self):
         if isinstance(self.df, pd.DataFrame):
             self._create_saving_lists()
             self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
             st.title("SmartEda report")
-            st.sidebar.divider()
-            self._create_assignments_ux()
+            self._sidebar_ux()
             self._apply_transformations()
             self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
             self._create_render_plots()
-            self._html_extract_ux()
-            self._html_download_ux()
+            self._html_all_ux()
         else:
-            st.title(f"Provide a dataframe in the sidebar to continue.")
-
+            st.title("Provide a dataframe in the sidebar to continue.")
 
     def _create_render_plots(self):
         if self.show_info:
@@ -189,6 +185,7 @@ class smartedaui(SmartEDA):
         c1, c2 = st.columns([2, 1] if self.show_iqr_box else [1, 1])
 
         for i, column in enumerate(self.numeric_cols):
+
             if self.show_iqr_box:
                 with c1:
                     st.plotly_chart(self._create_histogram_visualization(column=column, marginal=self.histogram_marginal, 
@@ -228,37 +225,38 @@ class smartedaui(SmartEDA):
 
     def _create_numerical_ux(self):
         st.sidebar.header("Numerical Options")
-        self.visnum = st.sidebar.checkbox("Visualize numerical", value=self.visnum)
+        self.visnum = st.sidebar.checkbox("Visualize numerical", value=self.visnum, key="Visualize numerical")
         if st.session_state["advanced_options"]:
             st.sidebar.text("Advanced Histogram Options")
-            self.histogram_color_method = st.sidebar.selectbox("Histogram color method", options=[None, "Column"])
-            self.histogram_bar_mode = st.sidebar.selectbox("Histogram bar mode", options=self.hist_bar_modes)
+            self.histogram_color_method = st.sidebar.selectbox("Histogram color method", options=[None, "Column"], key="Histogram color method")
+            self.histogram_bar_mode = st.sidebar.selectbox("Histogram bar mode", options=self.hist_bar_modes, key="Histogram bar method")
             if not self.histogram_color_method:
-                self.histogram_marginal = st.sidebar.selectbox("Histogram marginal", options=self.hist_marginal_methods)
+                self.histogram_marginal = st.sidebar.selectbox("Histogram marginal", options=self.hist_marginal_methods, key="Histogram marginal method")
             else:
-                self.histogram_marginal = st.sidebar.selectbox("Histogram marginal", options=[None, "rug"])
-        self.show_iqr_box = st.sidebar.checkbox("Show box graph", value=self.show_iqr_box,
+                self.histogram_marginal = st.sidebar.selectbox("Histogram marginal", options=[None, "rug"], key="Histogram marginal method")
+        self.show_iqr_box = st.sidebar.checkbox("Show box graph", value=self.show_iqr_box, key="Visualize box",
             help="If handle iqr is set to 'nan' the box plots might show wrong details!")
-        self.vishm = st.sidebar.checkbox("Visualize heatmap", value=self.vishm)
-        self.handle_iqr = st.sidebar.selectbox("Handle iqr method", get_args(IQRHandleMethod),
+        self.vishm = st.sidebar.checkbox("Visualize heatmap", value=self.vishm, key="Visualize heatmap")
+        self.handle_iqr = st.sidebar.selectbox("Handle iqr method", get_args(IQRHandleMethod), key="handle iqr method",
             help="If handle iqr is set to 'nan' the box plots might show wrong details!")
         
     def _create_categorical_ux(self):
         st.sidebar.header("Categorical Options")
-        self.viscat = st.sidebar.checkbox("Visualize categorical", value=self.viscat)
+        self.viscat = st.sidebar.checkbox("Visualize categorical", value=self.viscat, key="Visualize categorical")
 
     def _create_assignments_ux(self):
         st.sidebar.header("Index and date assignment")
-        self.index_column = st.sidebar.selectbox("Index column", options= [None] + self.all_cols)
-        self.date_column = st.sidebar.selectbox("Date column", options= [None] + self.all_cols)
+        self.index_column = st.sidebar.selectbox("Index column", options=[None] + self.all_cols, key="Index column")
+        self.date_column = st.sidebar.selectbox("Date column", options=[None] + self.all_cols, key="Date column")
 
-        selected_label = st.sidebar.selectbox("Select Date Format", options=list(self.DATE_FORMATS.keys()))
+        selected_label = st.sidebar.selectbox("Select Date Format", options=list(self.DATE_FORMATS.keys()), key="Date format")
 
         if selected_label == "Custom format (Enter below)":
             self.chosen_format = st.sidebar.text_input(
-            "Enter Custom Format String",
-            value="%Y-%m-%d",
-            help="Specify format directives starting with %. Example: %Y-%m-%d for 2026-06-06. Characters between them act as separators."
+                "Enter Custom Format String",
+                key="Custom date format",
+                value="%Y-%m-%d",
+                help="Specify format directives starting with %. Example: %Y-%m-%d for 2026-06-06. Characters between them act as separators."
             )
             with st.sidebar.expander("Quick Format Reference"):
                 st.markdown("""
@@ -272,16 +270,13 @@ class smartedaui(SmartEDA):
 
     def _create_configurations_ux(self):
         st.sidebar.header("Starter Configurations")
-        self.show_info = st.sidebar.checkbox("Print data information", value=self.show_info)
+        self.show_info = st.sidebar.checkbox("Print data information", value=self.show_info, key="Show info")
         st.session_state["advanced_options"] = st.sidebar.checkbox("Advanced Options", value=False)
 
     def _html_extract_ux(self):
-            save_numerical_figure = st.sidebar.checkbox("Save numerical figure into html.", value=False)
-            save_categorical_figure = st.sidebar.checkbox("Save categorical figure into html.", value=False)
-            save_heatmap_figure = st.sidebar.checkbox("Save heatmap figure into html.", value=False)
-            self.save_numerical = save_numerical_figure
-            self.save_categorical = save_categorical_figure
-            self.save_heatmap = save_heatmap_figure
+        self.save_numerical = st.sidebar.checkbox("Save numerical figure into html.", value=False, key="Save numerical")
+        self.save_categorical = st.sidebar.checkbox("Save categorical figure into html.", value=False, key="Save categorical")
+        self.save_heatmap = st.sidebar.checkbox("Save heatmap figure into html.", value=False, key="Save heatmap")
 
     def _save_px_html(self):
         html_content = [
@@ -305,11 +300,12 @@ class smartedaui(SmartEDA):
 
     def _html_download_ux(self):
         st.sidebar.download_button(
-                label="Download EDA HTML Report",
-                data=self._save_px_html(),
-                file_name=f"eda_results_{self.dataset}.html",
-                mime="text/html"
-                )
+            label="Download EDA HTML Report",
+            data=self._save_px_html(),
+            file_name=f"eda_results_{self.dataset}.html",
+            mime="text/html",
+            key="html download button"
+        )
 
     def _html_all_ux(self):
         st.sidebar.divider()
@@ -329,18 +325,8 @@ class smartedaui(SmartEDA):
 
     def __call__(self):
         self._df_initilazier()
-        if isinstance(self.df, pd.DataFrame):
-            self._create_saving_lists()
-            self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
-            st.title("SmartEda report")
-            self._sidebar_ux()
-            self._apply_transformations()
-            self.numeric_cols, self.categorical_cols, self.all_cols = Data.column_assigner(data=self.df, date_column=self.date_column)
-            self._create_render_plots()
-            self._html_all_ux()
-        else:
-            st.title(f"Provide a dataframe in the sidebar to continue.")
+        self.run()
 
 if __name__ == "__main__":
-    st.set_page_config("SmartEDA")
+    st.set_page_config(page_title="SmartEDA")
     smartedaui()()
