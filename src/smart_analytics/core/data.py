@@ -78,20 +78,22 @@ class Data:
             numerical_columns = data.select_dtypes(include=np.number).columns.to_list()
 
         if not isinstance(categorical_columns, list):
-            categorical_columns = data.select_dtypes(include=["object", "category", "str"]).columns.to_list()
-
-        if not Data.date_check(data=data, date_column=date_column):
-            date_column = None
+            categorical_columns = data.select_dtypes(include=["object", "category", pd.StringDtype()]).columns.to_list()
 
         numerical_columns = [col for col in numerical_columns if col != date_column]
         categorical_columns = [col for col in categorical_columns if col != date_column]
-        all_cols = numerical_columns + categorical_columns
 
-        if date_column:
-            if isinstance(date_column, str):
-                all_cols.append(date_column)
-            elif isinstance(date_column, (list, tuple, set)):
-                all_cols.extend(date_column)
+        if date_column is not None:
+            try:
+                Data.date_check(data=data, date_column=date_column)
+            except ValueError:
+                date_column = None
+
+            if not isinstance(date_column, list):
+                date_column = [date_column]
+            all_cols = numerical_columns + categorical_columns + date_column
+        else:
+            all_cols = numerical_columns + categorical_columns
         
         return numerical_columns, categorical_columns, all_cols
     

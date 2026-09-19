@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import io
+import json
+import os
+from typing import Callable
 import warnings
+
 import numpy as np
 import pandas as pd
-from smart_analytics.core.data import Data
 import pytest
-import json
+
+from smart_analytics.core.data import Data
 
 # ==========================================
 # TESTS FOR load_data
@@ -19,6 +25,7 @@ def test_load_data_with_dataframe():
     assert len(result_df) == 2
     assert result_df is not df
 
+
 def test_load_data_with_valid_input_when_can_return_none_is_true():
     """Valid DataFrame with can_return_none=True returns a valid dataframe."""
     df = pd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
@@ -28,6 +35,7 @@ def test_load_data_with_valid_input_when_can_return_none_is_true():
     assert len(result_df) == 2
     assert result_df is not df
     assert not result_df.empty
+
 
 def test_load_data_with_bytes_io():
     """Passing BytesIO object loads correctly."""
@@ -39,10 +47,12 @@ def test_load_data_with_bytes_io():
     assert list(result_df.columns) == ["col1", "col2"]
     assert len(result_df) == 2
 
+
 def test_load_data_invalid_input_raises_error():
     """Invalid input type without can_return_none raises ValueError."""
     with pytest.raises(ValueError, match="Invalid or missing dataframe input."):
         Data.load_data(df=12345, can_return_none=False)
+
 
 def test_load_data_invalid_input_returns_none():
     """Invalid input with can_return_none=True warns and returns None."""
@@ -50,10 +60,15 @@ def test_load_data_invalid_input_returns_none():
         result = Data.load_data(df=12345, can_return_none=True)
         assert result is None
 
+
 def test_load_data_json(tmp_path):
     json_file = tmp_path / "test_data.json"
-    json_file.write_text(json.dumps({"id": [101, 202], "status": ["ok", "fail"]}))
-    df, numerical_columns, categorical_columns, all_cols = Data.load_data(json_file, return_columns=True)
+    json_file.write_text(
+        json.dumps({"id": [101, 202], "status": ["ok", "fail"]})
+    )
+    df, numerical_columns, categorical_columns, all_cols = Data.load_data(
+        json_file, return_columns=True
+    )
 
     assert isinstance(df, pd.DataFrame)
     assert isinstance(numerical_columns, list)
@@ -64,18 +79,22 @@ def test_load_data_json(tmp_path):
     assert "id" in all_cols
     assert "status" in all_cols
 
+
 # ==========================================
 # TESTS FOR column_assigner & date_check
 # ==========================================
 
+
 def test_column_assigner():
     """Correctly categorizes columns and excludes date columns from regular lists."""
-    df = pd.DataFrame({
-        "num_col": [1, 2, 3],
-        "cat_col": ["a", "b", "c"],
-        "date_col": ["2026-01-01", "2026-01-02", None]
-    })
-    
+    df = pd.DataFrame(
+        {
+            "num_col": [1, 2, 3],
+            "cat_col": ["a", "b", "c"],
+            "date_col": ["2026-01-01", "2026-01-02", None],
+        }
+    )
+
     df["date_col"] = pd.to_datetime(df["date_col"], format="%Y-%m-%d")
 
     num, cat, all_cols = Data.column_assigner(data=df, date_column="date_col")
@@ -88,32 +107,288 @@ def test_column_assigner():
     assert "num_col" in all_cols
     assert "cat_col" in all_cols
 
+
 def test_column_assigner_invalid_data():
     """Passing non-dataframe to column_assigner raises ValueError."""
-    with pytest.raises(ValueError, match="Provided dataframe is not a pd.DataFrame object."):
+    with pytest.raises(
+        ValueError, match="Provided dataframe is not a pd.DataFrame object."
+    ):
         Data.column_assigner(data="not_a_dataframe")
 
-def test_date_check():
-    """Correctly identifies datetime columns."""
-    df = pd.DataFrame({
-        "dt": pd.to_datetime(["2026-01-01"]),
-        "not_dt": [123]
-    })
-    
-    assert Data.date_check(df, "dt") is True
-    assert Data.date_check(df, "not_dt") is False
-    assert Data.date_check(df, "missing") is False
+
+"""CI-ready pytest suite for the date_check() contract."""
+
+
+@pytest.fixture(scope="session")
+def date_check() -> Callable:
+    return Data.date_check
+
+
+@pytest.fixture
+def datetime_series() -> pd.Series:
+    return pd.Series(pd.date_range("2026-01-01", periods=3, freq="D"))
+
+
+@pytest.fixture
+def base_df(datetime_series: pd.Series) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "id": [1, 2, 3],
+            "created_at": datetime_series,
+            "updated_at": datetime_series + pd.Timedelta(days=1),
+            "age": [10, 20, 30],
+            "name": ["a", "b", "c"],
+        }
+    )
+
+
+def test_none_means_no_explicit_date_request(date_check, base_df):
+    assert date_check(base_df, None) is False
+
+
+def test_rejects_non_dataframe_input_even_when_date_is_none(date_check):
+    with pytest.raises(TypeError, match="pandas DataFrame"):
+        date_check({"created_at": []}, None)
+
+
+def test_valid_string_reference(date_check, base_df):
+    assert date_check(base_df, "created_at") is True
+
+
+def test_valid_integer_position(date_check, base_df):
+    # created_at is column position 1.
+    assert date_check(base_df, 1) is True
+
+
+def test_valid_multiple_string_references(date_check, base_df):
+    assert date_check(base_df, ["created_at", "updated_at"]) is True
+
+
+def test_valid_mixed_name_and_position_references(date_check, base_df):
+    assert date_check(base_df, ["created_at", 2]) is True
+
+
+def test_empty_list_is_rejected(date_check, base_df):
+    with pytest.raises(ValueError, match="empty list"):
+        date_check(base_df, [])
+
+
+@pytest.mark.parametrize("bad_type", [True, False])
+def test_top_level_boolean_is_rejected(date_check, base_df, bad_type):
+    with pytest.raises(TypeError, match="boolean"):
+        date_check(base_df, bad_type)
+
+
+@pytest.mark.parametrize("bad_type", [1.5, {"created_at"}, ("created_at",)])
+def test_unsupported_top_level_types_are_rejected(date_check, base_df, bad_type):
+    with pytest.raises(TypeError, match="date_column must be"):
+        date_check(base_df, bad_type)
+
+
+@pytest.mark.parametrize(
+    "bad_item", [True, False, 1.5, {"created_at"}, ("created_at",)]
+)
+def test_unsupported_items_inside_list_are_rejected(
+    date_check, base_df, bad_item
+):
+    with pytest.raises((TypeError, ValueError)) as exc_info:
+        date_check(base_df, ["created_at", bad_item])
+
+    assert "Invalid column reference" in str(exc_info.value) or "boolean" in str(
+        exc_info.value
+    )
+
+
+def test_missing_string_column_is_rejected(date_check, base_df):
+    with pytest.raises(ValueError, match="does not exist"):
+        date_check(base_df, "missing_date")
+
+
+def test_out_of_range_positive_position_is_rejected(date_check, base_df):
+    with pytest.raises(ValueError, match="out of range"):
+        date_check(base_df, base_df.shape[1])
+
+
+def test_negative_position_is_rejected(date_check, base_df):
+    with pytest.raises(ValueError, match="out of range"):
+        date_check(base_df, -1)
+
+
+def test_non_datetime_string_column_is_rejected(date_check, base_df):
+    with pytest.raises(ValueError, match="not datetime-like"):
+        date_check(base_df, "age")
+
+
+def test_mixed_valid_and_invalid_date_columns_are_atomic(date_check, base_df):
+    with pytest.raises(ValueError, match="not datetime-like"):
+        date_check(base_df, ["created_at", "age"])
+
+
+def test_missing_and_non_datetime_problems_are_reported_together(
+    date_check, base_df
+):
+    with pytest.raises(ValueError) as exc_info:
+        date_check(base_df, ["created_at", "missing_date", "age"])
+
+    message = str(exc_info.value)
+    assert "missing_date" in message
+    assert "age" in message
+    assert "does not exist" in message
+    assert "not datetime-like" in message
+
+
+def test_type_and_value_errors_are_both_discovered(date_check, base_df):
+    with pytest.raises(TypeError) as exc_info:
+        date_check(base_df, ["created_at", True, "missing_date"])
+
+    message = str(exc_info.value)
+    assert "boolean" in message
+    assert "missing_date" in message
+
+
+def test_duplicate_unrelated_column_does_not_fail(date_check, datetime_series):
+    df = pd.DataFrame(
+        [
+            [1, datetime_series.iloc[0], 10, "x", 10],
+            [2, datetime_series.iloc[1], 20, "y", 20],
+            [3, datetime_series.iloc[2], 30, "z", 30],
+        ],
+        columns=["id", "created_at", "age", "name", "age"],
+    )
+
+    assert date_check(df, "created_at") is True
+
+
+def test_duplicate_requested_name_is_ambiguous(date_check, datetime_series):
+    df = pd.DataFrame(
+        [
+            [1, datetime_series.iloc[0], datetime_series.iloc[0]],
+            [2, datetime_series.iloc[1], datetime_series.iloc[1]],
+            [3, datetime_series.iloc[2], datetime_series.iloc[2]],
+        ],
+        columns=["id", "created_at", "created_at"],
+    )
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        date_check(df, "created_at")
+
+
+def test_positional_reference_can_target_one_of_duplicate_labels(
+    date_check, datetime_series
+):
+    df = pd.DataFrame(
+        [
+            [datetime_series.iloc[0], "x", datetime_series.iloc[0]],
+            [datetime_series.iloc[1], "y", datetime_series.iloc[1]],
+            [datetime_series.iloc[2], "z", datetime_series.iloc[2]],
+        ],
+        columns=["created_at", "value", "created_at"],
+    )
+
+    assert date_check(df, 0) is True
+    assert date_check(df, 2) is True
+
+
+def test_unrelated_duplicate_columns_can_be_ignored_when_no_date_requested(
+    date_check,
+):
+    df = pd.DataFrame(
+        [[1, 10], [2, 20]],
+        columns=["age", "age"],
+    )
+
+    assert date_check(df, None) is False
+
+
+def test_datetime64_timezone_aware_column_is_valid(date_check):
+    df = pd.DataFrame(
+        {
+            "created_at": pd.date_range(
+                "2026-01-01",
+                periods=3,
+                freq="D",
+                tz="UTC",
+            )
+        }
+    )
+
+    assert date_check(df, "created_at") is True
+
+
+def test_date_looking_strings_are_not_implicitly_converted(date_check):
+    df = pd.DataFrame(
+        {"created_at": ["2026-01-01", "2026-01-02", "2026-01-03"]}
+    )
+
+    with pytest.raises(ValueError, match="not datetime-like"):
+        date_check(df, "created_at")
+
+
+def test_timedelta_is_not_considered_a_date(date_check):
+    df = pd.DataFrame({"duration": pd.to_timedelta([1, 2, 3], unit="D")})
+
+    with pytest.raises(ValueError, match="not datetime-like"):
+        date_check(df, "duration")
+
+
+def test_numpy_integer_is_currently_rejected_as_reference(date_check, base_df):
+    # The public contract currently accepts Python int, not arbitrary integer scalars.
+    with pytest.raises(TypeError):
+        date_check(base_df, np.int64(1))
+
+
+def test_empty_dataframe_with_no_date_request(date_check):
+    df = pd.DataFrame()
+    assert date_check(df, None) is False
+
+
+def test_empty_dataframe_with_named_date_request(date_check):
+    df = pd.DataFrame()
+    with pytest.raises(ValueError, match="does not exist"):
+        date_check(df, "created_at")
+
+
+def test_empty_dataframe_with_positional_date_request(date_check):
+    df = pd.DataFrame()
+    with pytest.raises(ValueError, match="out of range"):
+        date_check(df, 0)
+
+
+def test_does_not_partially_accept_valid_subset(date_check, base_df):
+    with pytest.raises(ValueError):
+        date_check(base_df, ["created_at", "age"])
+
+
+def test_list_order_does_not_change_validity(date_check, base_df):
+    assert date_check(base_df, ["created_at", "updated_at"]) is True
+    assert date_check(base_df, ["updated_at", "created_at"]) is True
+
+
+def test_wide_dataframe_with_many_requested_dates(date_check):
+    rows = 2
+    cols = {f"value_{i}": [i, i + 1] for i in range(950)}
+    date_columns = {
+        f"date_{i}": pd.date_range("2026-01-01", periods=rows, freq="D")
+        for i in range(50)
+    }
+    df = pd.DataFrame({**cols, **date_columns})
+
+    requested = [f"date_{i}" for i in range(50)]
+    assert date_check(df, requested) is True
+
 
 # ==========================================
 # TESTS FOR assign_date
 # ==========================================
 
+
 def test_assign_date_success():
     """Successfully converts string column to datetime."""
     df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"]})
     result_df = Data.assign_date(df, "date_col", date_format="%d/%m/%Y")
-    
+
     assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
+
 
 def test_assign_date_invalid_column_warning():
     """Invalid date format or column triggers warning and returns original dataframe."""
@@ -122,48 +397,78 @@ def test_assign_date_invalid_column_warning():
         result_df = Data.assign_date(df, "non_existent_col")
         assert result_df is not None
 
+
 def test_assign_date_int():
     df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"]})
     result_df = Data.assign_date(df, date_column=0, date_format="%d/%m/%Y")
     assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
+
 
 def test_assign_date_single_element_list():
     df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"]})
     result_df = Data.assign_date(df, date_column=["date_col"], date_format="%d/%m/%Y")
     assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
 
+
 def test_assign_date_multiple_element_list():
-    df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"], "date_col2": ["02/01/2026", "03/01/2026"]})
+    df = pd.DataFrame(
+        {
+            "date_col": ["01/01/2026", "02/01/2026"],
+            "date_col2": ["02/01/2026", "03/01/2026"],
+        }
+    )
     result_df = Data.assign_date(df, date_column=["date_col"], date_format="%d/%m/%Y")
     assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
 
+
 def test_assign_date_multiple_elements_list_and_date_format_as_list():
-    df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"], "date_col2": ["02-01-2026", "03-01-2026"]})
-    result_df = Data.assign_date(df, date_column=["date_col"], date_format=["%d/%m/%Y", "%d-%m-%Y"])
+    df = pd.DataFrame(
+        {
+            "date_col": ["01/01/2026", "02/01/2026"],
+            "date_col2": ["02-01-2026", "03-01-2026"],
+        }
+    )
+    result_df = Data.assign_date(
+        df, date_column=["date_col"], date_format=["%d/%m/%Y", "%d-%m-%Y"]
+    )
     assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
 
+
 def test_assign_date_multiple_elements_list_and_date_format_as_dict():
-    df = pd.DataFrame({"date_col": ["01/01/2026", "02/01/2026"], "date_col2": ["02-01-2026", "03-01-2026"]})
-    result_df = Data.assign_date(df, date_column=["date_col"], date_format={"date_col":"%d/%m/%Y","date_col2": "%d-%m-%Y"})
+    df = pd.DataFrame(
+        {
+            "date_col": ["01/01/2026", "02/01/2026"],
+            "date_col2": ["02-01-2026", "03-01-2026"],
+        }
+    )
+    result_df = Data.assign_date(
+        df,
+        date_column=["date_col"],
+        date_format={"date_col": "%d/%m/%Y", "date_col2": "%d-%m-%Y"},
+    )
     assert pd.api.types.is_datetime64_any_dtype(result_df["date_col"])
+
 
 # ==========================================
 # TESTS FOR assign_index
 # ==========================================
 
+
 def test_assign_index_by_string():
     """Successfully sets a dataframe index using column name string."""
     df = pd.DataFrame({"id": ["a", "b"], "val": [1, 2]})
     result_df = Data.assign_index(df, index_column="id")
-    
+
     assert result_df.index.name == "id"
+
 
 def test_assign_index_by_int():
     """Successfully sets dataframe index using column position integer."""
     df = pd.DataFrame({"id": ["a", "b"], "val": [1, 2]})
     result_df = Data.assign_index(df, index_column=0)
-    
+
     assert result_df.index.name == "id"
+
 
 def test_assign_index_by_list():
     df = pd.DataFrame({"id": [1, 2], "id2": [3, 4]})
@@ -172,47 +477,54 @@ def test_assign_index_by_list():
     assert "id" in result_df.index.names
     assert "id2" in result_df.index.names
 
+
 def test_assign_index_single_element_list():
     """Catch the unboxing bug for single-item lists."""
     df = pd.DataFrame({"id": [1, 2], "val": [10, 20]})
     res = Data.assign_index(df, index_column=["id"])
     assert res.index.name == "id"
 
+
 def test_assign_index_by_tuple_and_set():
     """Verify tuples and sets set multi-level index properly."""
     df = pd.DataFrame({"a": [1, 2], "b": [3, 4], "val": [10, 20]})
-    
+
     res_tuple = Data.assign_index(df.copy(), index_column=("a", "b"))
     assert res_tuple.index.names == ["a", "b"]
 
     res_set = Data.assign_index(df.copy(), index_column={"b", "a"})
     assert res_set.index.names == ["a", "b"]
 
+
 # ==========================================
 # TESTS FOR calculate_iqr & return_iqr
 # ==========================================
+
 
 def test_calculate_iqr():
     """Calculates low and high IQR thresholds correctly."""
     series = pd.Series([1, 2, 3, 4, 5, 100])
     low, high = Data.calculate_iqr(series)
-    
+
     assert isinstance(low, (int, float, np.number))
     assert isinstance(high, (int, float, np.number))
     assert low < high
+
 
 def test_return_iqr_masks_outliers():
     """Masks outliers beyond IQR boundaries to NaN."""
     df = pd.DataFrame({"val": [10, 11, 12, 13, 14, 1000]})
     result_df = Data.return_iqr(df, columns="val")
-    
+
     assert pd.isna(result_df["val"].iloc[-1])
     assert result_df["val"].iloc[0] == 10
+
 
 def test_return_iqr_invalid_dataframe():
     """Passing non-dataframe to return_iqr raises ValueError."""
     with pytest.raises(ValueError, match="DataFrame isn't a pandas DataFrame."):
         Data.return_iqr("not_a_df", columns=["val"])
+
 
 def test_return_iqr_missing_column_warning():
     """Passing non-existent column triggers a warning."""
