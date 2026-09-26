@@ -183,17 +183,30 @@ class Data:
         return (low, high)
 
     @staticmethod
-    def return_iqr(data:pd.DataFrame, columns: str | list, return_columns: bool = False) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
+    def return_iqr(data:pd.DataFrame, columns: str| int | list[str | int] | tuple[str | int] | set[str | int], 
+                   return_columns: bool = False, copy:bool=True) -> pd.DataFrame | tuple[pd.DataFrame, list, list, list]:
         if not isinstance(data, pd.DataFrame):
             raise ValueError(f"DataFrame isn't a pandas DataFrame.")
             
         if isinstance(columns, str):
             columns = [columns]
+
+        if isinstance(columns, int):
+            columns = [data.columns[columns]]
         
-        if not isinstance(columns, (list, tuple)):
-            return data
+        if not isinstance(columns, (list, tuple, set)):
+            raise TypeError("Provided columns aren't in the awaited types: [str, int, list, tuple, set]")
         
-        data = data.copy()
+        data = data.copy() if copy else data
+
+        for i, col in enumerate(columns):
+            if isinstance(col, int):
+                if 0 <= col < data.shape[1]:
+                    columns[i] = data.columns[col]
+                else:
+                    raise IndexError(f"Column index {col} is out of bounds for DataFrame with {data.shape[1]} columns.")
+            elif not isinstance(col, str):
+                raise TypeError(f"Provided column {col!r}, aren't in the awaited types: [str, int].")
 
         for col in columns:
             if col in data.columns:
@@ -201,7 +214,7 @@ class Data:
                 data[col] = data[col].mask(
                     (data[col] < low) | (data[col] > high))
             else:
-                warnings.warn(f"Column '{col}' not found in DataFrame.", category=UserWarning)
+                raise ValueError(f"Provided column {col!r} isn't in {data.columns}")
         if return_columns:
             numerical_columns, categorical_columns, all_cols = Data.column_assigner(data=data)
             return data, numerical_columns, categorical_columns, all_cols
@@ -209,117 +222,42 @@ class Data:
         return data
 
     @staticmethod
-    def date_check(
-        data: pd.DataFrame,
-        date_column: str | int | list[str | int] | None = None,
-    ) -> bool:
-        if not isinstance(data, pd.DataFrame):
-            raise TypeError("Provided data must be a pandas DataFrame.")
-
-        if date_column is None:
+    def date_check(data: pd.DataFrame, date_column: str | int | list[str | int] | None = None) -> bool:
+        if not isinstance(data, pd.DataFrame) or date_column is None:
             return False
 
-        if isinstance(date_column, bool):
-            raise TypeError("date_column cannot be a boolean.")
+        if isinstance(date_column, (str, int)) and not isinstance(date_column, bool):
+            columns = [date_column]
 
-        if isinstance(date_column, (str, int)):
-            requested_columns = [date_column]
-
-        elif isinstance(date_column, list):
-            if not date_column:
-                raise ValueError("date_column cannot be an empty list.")
-
-            requested_columns = date_column
+        elif isinstance(date_column, (list, tuple, set)) and date_column:
+            columns = date_column
 
         else:
-            raise TypeError("date_column must be a string, integer position, "
-                "list of strings/integers, or None."
-                )
-        
-        requested_names = {item for item in requested_columns if isinstance(item, str)
-        }
+            return False
 
-        column_positions: dict[str, list[int]] = {}
+        for col in columns:
+            if isinstance(col, bool):
+                return False
 
-        if requested_names:
-            for position, label in enumerate(data.columns):
-                if label in requested_names:
-                    column_positions.setdefault(label, []).append(position)
+            if isinstance(col, int):
+                if col < 0 or col >= data.shape[1]:
+                    return False
+                series = data.iloc[:, col]
 
-        type_errors = []
-        value_errors = []
 
-        resolved_columns = []
+            elif isinstance(col, str):
+                if col not in data.columns:
+                    return False
 
-        for item in requested_columns:
+                series = data[col]
 
-            if isinstance(item, bool):
-                type_errors.append(f"{item!r} is not a valid column reference; "
-                    "boolean values are not supported."
-                )
-                continue
+                if isinstance(series, pd.DataFrame):
+                    return False
 
-            if isinstance(item, int):
-                if item < 0 or item >= data.shape[1]:
-                    value_errors.append(f"Column position {item} is out of range. "
-                        f"Valid positions are 0 to {data.shape[1] - 1}."
-                    )
-                    continue
+            else:
+                return False
 
-                series = data.iloc[:, item]
-                label = data.columns[item]
-
-                resolved_columns.append((item, label, series))
-                continue
-        
-            if isinstance(item, str):
-                positions = column_positions.get(item, [])
-
-                if not positions:
-                    value_errors.append(f"Column {item!r} does not exist.")
-                    continue
-
-                if len(positions) > 1:
-                    value_errors.append(
-                        f"Column name {item!r} is ambiguous; "
-                        f"it appears {len(positions)} times at "
-                        f"positions {positions}.")
-                    continue
-
-                position = positions[0]
-                series = data.iloc[:, position]
-                label = data.columns[position]
-
-                resolved_columns.append((item, label, series))
-                continue
-
-            type_errors.append(
-                f"Invalid column reference {item!r}; "
-                "expected a string or integer position."
-            )
-
-        for reference, label, series in resolved_columns:
             if not is_datetime64_any_dtype(series):
-                value_errors.append(
-                    f"Reference {reference!r} resolves to column "
-                    f"{label!r}, but its dtype is not datetime-like."
-                )
-
-        if type_errors or value_errors:
-            messages = []
-
-            if type_errors:
-                messages.append("Type errors:")
-                messages.extend(f"- {message}"for message in type_errors)
-
-            if value_errors:
-                messages.append("Value errors:")
-                messages.extend(f"- {message}" for message in value_errors)
-
-            message = ("Invalid date_column specification:\n" + "\n".join(messages))
+                return False
             
-            if type_errors:
-                raise TypeError(message)
-            raise ValueError(message)
-
         return True
