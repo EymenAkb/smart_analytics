@@ -324,7 +324,7 @@ class tsui(SmartTimeSeries):
 
     def __call__(self):
         self._create_savings()
-        if not self.df:
+        if self.df is None:
             self._df_initilaizer()
         if isinstance(self.df, pd.DataFrame):
             self.numerical_columns, self.categorical_columns, self.all_columns = Data.column_assigner(data=self.df, date_column=self.date_column)
